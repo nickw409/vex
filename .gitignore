@@ -1,6 +1,9 @@
 # Binary
 /vex
 
+# Release artifacts
+/dist/
+
 # Vex output (keep vexspec)
 .vex/*
 !.vex/vexspec.yaml

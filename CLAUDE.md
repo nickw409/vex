@@ -6,7 +6,8 @@ Test coverage auditor that verifies tests fully cover intended behavior describe
 
 ```bash
 go test ./...
-go build -o vex ./cmd/vex/
+make build              # build with version info
+make install            # install to $GOPATH/bin
 ```
 
 ## Project Structure
@@ -22,6 +23,9 @@ internal/
   diff/           Git diff and drift detection
   lang/           Language detection and test file discovery
   report/         JSON output formatting
+  version/        Build-time version info (set via ldflags)
+install.sh        Standalone binary installer (no Go required)
+Makefile          Build, test, install, and release targets
 ```
 
 ## Key Conventions
@@ -45,6 +49,7 @@ vex spec "description" --extend Config           # add behaviors to existing sec
 vex drift                                        # check for code changes since last check
 vex init                                         # create vex.yaml config
 vex guide                                        # print agent instructions for writing specs
+vex version                                      # print version, commit, build date
 ```
 
 ## Design Principles
@@ -55,3 +60,21 @@ vex guide                                        # print agent instructions for 
 - **Language agnostic** — auto-detects Go, TypeScript, JavaScript, Python, Java
 - **Agent-first** — JSON output, config files over CLI flags, guide command for agent instructions
 - **Bounded** — spec defines the scope, no infinite nitpicking
+
+## Versioning & Releases
+
+Version is injected at build time via ldflags into `internal/version`. Never hardcode version strings.
+
+**Cutting a release:**
+
+```bash
+git tag v0.X.0
+git push origin v0.X.0
+make VERSION=v0.X.0 release
+# Upload dist/*.tar.gz to the GitHub release for the tag
+gh release create v0.X.0 dist/*.tar.gz --title "v0.X.0" --notes "Release notes"
+```
+
+**What `make release` produces:** cross-compiled tarballs in `dist/` for linux/darwin amd64/arm64. Each contains a single `vex` binary.
+
+**Users install via:** `curl -fsSL https://raw.githubusercontent.com/nwiley/vex/main/install.sh | sh` — downloads the right binary for their OS/arch from GitHub releases. Supports `VEX_VERSION` and `VEX_INSTALL_DIR` env vars.

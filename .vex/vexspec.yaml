@@ -1,0 +1,362 @@
+project: Vex
+description: |
+  Spec-driven test coverage auditor that verifies tests fully cover
+  intended behavior described in a spec. Designed for AI agent consumption.
+
+shared:
+  - name: exit-codes
+    description: |
+      Exit 0 on success or no gaps found. Exit 1 when gaps or suggestions
+      are found. Exit 2 on fatal error (file not found, invalid config, etc).
+  - name: error-output
+    description: |
+      Errors and diagnostics go to stderr. JSON output goes to stdout.
+      Progress messages (file paths written, warnings) go to stderr.
+  - name: json-output
+    description: |
+      Commands that produce reports write indented JSON to stdout and
+      also write the same JSON to a file in .vex/ directory.
+
+sections:
+  - name: Config
+    path: internal/config
+    description: |
+      Configuration loading from vex.yaml and default generation.
+    behaviors:
+      - name: config-defaults
+        description: |
+          Default config uses provider "claude-cli", model "opus",
+          max_concurrency 4. No api_key_env or language overrides.
+      - name: config-load
+        description: |
+          Loads vex.yaml from explicit path. If path is empty, walks up
+          the directory tree from cwd to filesystem root looking for
+          vex.yaml. Returns error if not found during walk.
+      - name: config-load-partial
+        description: |
+          When loaded config omits fields (provider, model, max_concurrency),
+          missing fields are filled with defaults. Explicitly set fields
+          are preserved.
+      - name: config-language-overrides
+        description: |
+          Config languages map overrides built-in detection. Each language
+          entry has test_patterns and source_patterns as glob lists.
+      - name: config-write-default
+        description: |
+          WriteDefault creates a vex.yaml with default values. Returns
+          error if file already exists (no overwrite).
+
+  - name: CLI
+    path: internal/cli
+    description: |
+      Cobra command definitions and command orchestration.
+    shared: [exit-codes, error-output, json-output]
+    behaviors:
+      - name: root-config-loading
+        description: |
+          Root command loads config via PersistentPreRunE. Skips config
+          loading for init and guide commands. Falls back to defaults
+          if config file not found (no error). Sets global cfg.
+      - name: root-config-flag
+        description: |
+          --config flag specifies explicit path to vex.yaml.
+    subsections:
+      - name: Init
+        file: internal/cli/init.go
+        behaviors:
+          - name: init-command
+            description: |
+              vex init creates default vex.yaml via config.WriteDefault.
+              Prints "Created vex.yaml" to stderr on success. Returns
+              error if file already exists.
+
+      - name: Check
+        file: internal/cli/check.go
+        behaviors:
+          - name: check-spec-loading
+            description: |
+              Loads spec from --spec flag (default .vex/vexspec.yaml).
+              Returns error if spec file not found or invalid.
+          - name: check-section-filter
+            description: |
+              --section flag filters to a single named section.
+              Returns error if named section not found in spec.
+              Case-sensitive match.
+          - name: check-file-gathering
+            description: |
+              For each section, detects language and finds source/test
+              files from section paths. Warns on stderr if language
+              detection or file finding fails for a path but continues.
+              Warns if no files found for a section.
+          - name: check-execution
+            description: |
+              Calls check.RunProject with gathered files and provider.
+              On check error, prints to stderr but still outputs
+              whatever report was generated.
+          - name: check-diff-mode
+            description: |
+              When --diff flag is passed, uses diff.ChangedFiles and
+              diff.FilterByLanguage to scope file gathering to only
+              git-changed files instead of walking full section paths.
+              Produces empty report with exit 0 if no files changed.
+          - name: check-output
+            description: |
+              Writes JSON report to stdout and .vex/report.json.
+              Exit code 0 if no gaps, exit code 1 if gaps found.
+
+      - name: Validate
+        file: internal/cli/validate.go
+        behaviors:
+          - name: validate-spec-arg
+            description: |
+              Accepts optional positional arg for spec file path.
+              Defaults to .vex/vexspec.yaml if no arg provided.
+          - name: validate-output
+            description: |
+              Writes JSON validation result to stdout and
+              .vex/validation.json. Exit code 1 if not complete,
+              exit code 0 if complete.
+
+      - name: Spec
+        file: internal/cli/spec.go
+        behaviors:
+          - name: spec-generate-new
+            description: |
+              vex spec "description" generates new sections. Requires
+              exactly one positional argument; errors if no description
+              provided. If no existing spec, creates .vex/vexspec.yaml
+              with inferred project name (directory basename, fallback
+              "MyProject"). Prints created section names to stderr.
+          - name: spec-generate-append
+            description: |
+              If .vex/vexspec.yaml exists, appends generated sections
+              to existing spec without overwriting existing sections.
+          - name: spec-extend
+            description: |
+              --extend flag adds behaviors/subsections to an existing
+              named section. Returns error if section not found.
+              Case-sensitive match. Prints count of added behaviors
+              to stderr.
+
+      - name: Guide
+        file: internal/cli/guide.go
+        behaviors:
+          - name: guide-content
+            description: |
+              Prints agent-facing instructions for writing vexspecs.
+              Includes spec format examples, behavior description
+              guidelines, output file locations (.vex/report.json,
+              .vex/validation.json), example workflow, and command
+              reference.
+
+      - name: Output
+        file: internal/cli/output.go
+        behaviors:
+          - name: write-output
+            description: |
+              Creates .vex/ directory (0755) if missing. Writes data
+              to .vex/{filename} with trailing newline. Prints written
+              path to stderr. Returns error on directory creation or
+              write failure.
+
+  - name: Spec Parsing
+    path: internal/spec
+    description: |
+      Spec data structures, YAML loading, and validation.
+    subsections:
+      - name: Data Model
+        file: internal/spec/spec.go
+        behaviors:
+          - name: spec-load-project
+            description: |
+              Loads ProjectSpec from YAML file. Default path is
+              .vex/vexspec.yaml. Returns error on file not found,
+              invalid YAML, or validation failure.
+          - name: spec-validation
+            description: |
+              Validates project name is set, at least one section exists,
+              shared behaviors have name+description with no duplicates,
+              section shared refs point to existing shared behaviors,
+              section behaviors have name+description, subsections have
+              name and can't have both path and file set.
+          - name: spec-path-list
+            description: |
+              PathList unmarshals both string and array YAML into a
+              string slice. Single path "foo" becomes ["foo"], list
+              ["foo","bar"] stays as-is.
+          - name: spec-all-behaviors
+            description: |
+              AllBehaviors collects shared (resolved by name), section,
+              and subsection behaviors into one list for a section.
+          - name: spec-section-paths
+            description: |
+              SectionPaths returns deduplicated list of all paths for
+              a section: section paths, subsection paths, and parent
+              directories of subsection files.
+
+      - name: Validation
+        file: internal/spec/validate.go
+        behaviors:
+          - name: validate-project
+            description: |
+              Sends entire spec to LLM to find missing behaviors.
+              Returns ValidationResult with complete bool and
+              suggestions array. Each suggestion has section name,
+              behavior_name, description, and relation (new or
+              extends existing).
+          - name: validate-prompt-rules
+            description: |
+              LLM prompt only suggests conspicuously absent behaviors
+              within each section's scope. Does not suggest timeout,
+              permission, logging, internal error, or graceful
+              degradation behaviors. High-confidence suggestions only.
+
+      - name: Generation
+        file: internal/spec/generate.go
+        behaviors:
+          - name: generate-sections
+            description: |
+              Takes task description, calls LLM, returns list of
+              sections with behaviors and subsections. Validates
+              all sections have names and all behaviors have
+              name+description. Returns error if LLM response
+              is not valid YAML or fails validation.
+          - name: generate-extend
+            description: |
+              Takes task description and existing section, calls LLM
+              to generate only new behaviors/subsections that don't
+              duplicate existing ones. Returns ExtendResult.
+          - name: generate-prompt-rules
+            description: |
+              LLM prompt requires behaviors describe one observable
+              behavior each, include error cases inline, use
+              kebab-case names, absolute paths from project root,
+              and no implementation details or internal error
+              handling suggestions.
+
+  - name: Provider
+    path: internal/provider
+    description: |
+      LLM provider abstraction and implementations.
+    subsections:
+      - name: Factory
+        file: internal/provider/provider.go
+        behaviors:
+          - name: provider-factory
+            description: |
+              New() creates provider from config. Currently only
+              supports "claude-cli". Returns error on unknown provider.
+          - name: provider-interface
+            description: |
+              Provider interface requires Complete(ctx, request)
+              returning CompletionResponse with content string
+              and TokenUsage (input/output tokens, cost, duration).
+
+      - name: Claude CLI
+        file: internal/provider/claude_cli.go
+        behaviors:
+          - name: claude-cli-execution
+            description: |
+              Runs claude --print --output-format json --model {model}
+              --system-prompt {system}. Passes user prompt via stdin.
+              Parses JSON response with result, total_cost_usd,
+              duration_ms, and usage fields.
+          - name: claude-cli-not-found
+            description: |
+              If claude binary not found, returns error with install
+              instructions URL.
+          - name: claude-cli-usage-logging
+            description: |
+              Logs to stderr: input tokens, output tokens, cache
+              read/creation tokens, cost (USD), and duration.
+              Format: [vex] in={n} out={n} cache_read={n}
+              cache_create={n} cost=${n} duration={n}ms
+
+  - name: Check Engine
+    path: internal/check
+    description: |
+      Core gap detection engine using LLM to audit test coverage.
+    behaviors:
+      - name: check-run-project
+        description: |
+          RunProject runs all sections in parallel with bounded
+          concurrency (default 4 if maxConcurrency <= 0). Merges
+          results into single report with computed summary.
+      - name: check-section-prompt
+        description: |
+          Builds prompt from section name, description, behaviors,
+          source files, and test files. Enforces 400K char limit
+          on total content. Returns error if exceeded, suggesting
+          --diff or narrower path.
+      - name: check-response-parsing
+        description: |
+          Parses LLM JSON response. Strips markdown fences before
+          parsing. Returns empty slices (not nil) for gaps and
+          covered if LLM returns none. Each gap has behavior,
+          detail, suggestion. Each covered has behavior, detail,
+          test_file, test_name.
+      - name: check-partial-coverage
+        description: |
+          A behavior can have both gaps and covered entries
+          (partial coverage). FullyCovered in summary counts
+          behaviors that appear in covered but not in gaps.
+
+  - name: Report
+    path: internal/report
+    description: |
+      Test coverage report formatting.
+    behaviors:
+      - name: report-structure
+        description: |
+          Report contains spec path, behaviors_checked count,
+          gaps array, covered array, and summary with
+          total_behaviors, fully_covered, gaps_found.
+      - name: report-json
+        description: |
+          JSON() marshals report to indented JSON (2-space indent).
+      - name: report-has-gaps
+        description: |
+          HasGaps returns true if gaps array is non-empty.
+      - name: report-compute-summary
+        description: |
+          ComputeSummary counts fully covered (behaviors in covered
+          but not in gaps) and total gap count.
+
+  - name: Language Detection
+    path: internal/lang
+    description: |
+      Language detection and test/source file discovery.
+    behaviors:
+      - name: lang-detect
+        description: |
+          Walks directory counting file extensions. Returns most
+          common supported language. Skips node_modules, vendor,
+          .git directories. If config overrides provided, returns
+          first override language. Returns error if no supported
+          language detected.
+      - name: lang-builtin-patterns
+        description: |
+          Built-in languages: Go (*_test.go / *.go), TypeScript
+          (*.test.ts, *.spec.ts / *.ts), JavaScript (*.test.js,
+          *.spec.js / *.js, only if package.json exists), Python
+          (test_*.py, *_test.py / *.py), Java (*Test.java / *.java).
+      - name: lang-find-files
+        description: |
+          Walks directory tree separating files into source and
+          test lists by language patterns. Skips node_modules,
+          vendor, .git directories.
+
+  - name: Diff
+    path: internal/diff
+    description: |
+      Git diff integration for scoping checks to changed files.
+    behaviors:
+      - name: diff-changed-files
+        description: |
+          Runs git diff HEAD --name-only in directory. Returns
+          absolute paths. Returns nil if no changes. Returns
+          error if directory is not inside a git repository.
+      - name: diff-filter-by-language
+        description: |
+          Separates file list into source and test files by
+          matching against language glob patterns.

@@ -1,8 +1,9 @@
 # Binary
 /vex
 
-# Vex output
-.vex/
+# Vex output (keep vexspec)
+.vex/*
+!.vex/vexspec.yaml
 
 # Claude
 .claude/

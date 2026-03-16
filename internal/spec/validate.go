@@ -108,11 +108,7 @@ func buildProjectValidatePrompt(ps *ProjectSpec) string {
 }
 
 func parseValidationResponse(content string) (*ValidationResult, error) {
-	content = strings.TrimSpace(content)
-	content = strings.TrimPrefix(content, "```json")
-	content = strings.TrimPrefix(content, "```")
-	content = strings.TrimSuffix(content, "```")
-	content = strings.TrimSpace(content)
+	content = extractJSON(content)
 
 	var result ValidationResult
 	if err := json.Unmarshal([]byte(content), &result); err != nil {
@@ -120,4 +116,18 @@ func parseValidationResponse(content string) (*ValidationResult, error) {
 	}
 
 	return &result, nil
+}
+
+func extractJSON(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "```json")
+	s = strings.TrimPrefix(s, "```")
+	s = strings.TrimSuffix(s, "```")
+	s = strings.TrimSpace(s)
+	if start := strings.Index(s, "{"); start >= 0 {
+		if end := strings.LastIndex(s, "}"); end >= start {
+			return s[start : end+1]
+		}
+	}
+	return s
 }

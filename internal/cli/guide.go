@@ -79,8 +79,33 @@ truncated by your environment. The .vex/ directory is gitignored.
 7. Fix gaps reported by vex
 8. Repeat steps 6-7 until exit code 0
 
-To check only one section:
-  vex check --section "Section Name"
+## Incremental Checks
+After the first full check, use drift to skip unchanged sections:
+
+  vex check --drift
+
+This compares git history and uncommitted changes against section
+paths. Only sections with changes since the last check are sent
+to the LLM. Cost converges toward zero for stable code.
+
+To see which sections have drifted without running a check:
+  vex drift
+
+## Cost Optimization
+Vex uses a two-pass strategy to minimize LLM cost:
+- Pass 1: sends only test files and behaviors (cheap triage)
+- Pass 2: sends source + tests only for behaviors flagged as uncovered
+Well-tested codebases skip pass 2 entirely.
+
+## Commands
+  vex check                          # full check
+  vex check --section "Name"         # check one section
+  vex check --drift                  # only check changed sections
+  vex validate                       # validate spec completeness
+  vex spec "description"             # generate spec sections
+  vex spec "desc" --extend "Name"    # add to existing section
+  vex drift                          # show which sections changed
+  vex init                           # create vex.yaml config
 `
 
 func newGuideCmd() *cobra.Command {

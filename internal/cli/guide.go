@@ -6,23 +6,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const guideText = `# Writing Vex Specifications
+const guideText = `# Vex Agent Guide
 
-## When to Write a Spec
-Write the vexspec BEFORE or DURING implementation, from the task description.
-NEVER write a spec by reading existing code — that defeats the purpose.
+Vex is a spec-driven test coverage auditor. You write a spec describing
+intended behaviors, then vex checks whether your tests cover them.
+
+## Core Concept
+The spec is the source of truth — not the code. Write the spec from the
+task description BEFORE or DURING implementation. NEVER write a spec by
+reading existing code.
 
 ## Quick Start
-Generate a spec from a task description:
 
+  # Generate spec from task description
   vex spec "Add JWT authentication with login, refresh, and token validation"
 
-This creates .vex/vexspec.yaml with sections and behaviors. If the file
-already exists, new sections are appended.
+  # Validate spec for missing behaviors
+  vex validate
+
+  # Check test coverage
+  vex check
+
+  # Read results (stdout may be truncated — always read the file)
+  cat .vex/report.json
 
 ## Spec Format
-The vexspec lives at .vex/vexspec.yaml. One file per project, structured
-as a living design doc. All paths are absolute from the project root.
+
+The spec lives at .vex/vexspec.yaml. All paths are absolute from project root.
 
   project: MyApp
   description: |
@@ -50,52 +60,113 @@ as a living design doc. All paths are absolute from the project root.
           behaviors:
             - name: refresh
               description: |
-                POST /refresh returns a new token.
+                POST /refresh returns new access token.
 
-## Guidelines
-- Each behavior should describe ONE observable external behavior
-- Include error cases inline (e.g. "Returns 401 on invalid credentials")
-- Be specific: "returns 401" not "handles errors"
-- Include side effects: database writes, events emitted, files created
-- Do NOT describe implementation details (which function, which pattern)
-- All paths are absolute from the project root, never relative
+Key rules:
+- sections map to directories via "path"
+- subsections scope to a directory ("path") or single file ("file"), not both
+- shared behaviors are referenced by name in a section's "shared" list
+- paths support string or list: "path: foo" or "path: [foo, bar]"
 
-## Output
-Vex writes results to the .vex/ directory:
-- .vex/vexspec.yaml    — the project spec (source of truth)
-- .vex/report.json     — full check report (gaps + covered behaviors)
-- .vex/validation.json — spec validation results
+## Writing Behaviors
 
-Always read the full report from these files. Stdout output may be
-truncated by your environment. The .vex/ directory is gitignored.
+A behavior IS:
+- One observable external behavior with input -> output
+- Error cases included inline: "Returns 401 on invalid credentials"
+- Side effects stated: "Writes session to database"
 
-## Example Workflow
-1. Read task/ticket description
-2. Run: vex spec "description" to generate sections
-3. Review and edit .vex/vexspec.yaml
-4. Run: vex validate — review .vex/validation.json, update spec if needed
-5. Implement code and tests
-6. Run: vex check — review .vex/report.json
-7. Fix gaps reported by vex
-8. Repeat steps 6-7 until exit code 0
+A behavior is NOT:
+- A data structure ("Report contains these fields")
+- An interface definition ("Provider must implement Complete()")
+- A list of values ("Supports Go, Python, Java")
+- Implementation details ("Uses bcrypt for hashing")
 
-## Incremental Checks
-After the first full check, use drift to skip unchanged sections:
+Be specific: "returns 401" not "handles errors". Use kebab-case names.
+
+## Understanding Reports
+
+### Check Report (.vex/report.json)
+
+  {
+    "behaviors_checked": 10,
+    "gaps": [
+      {
+        "behavior": "login",
+        "detail": "No test for invalid credentials returning 401",
+        "suggestion": "TestLoginInvalidCredentials401"
+      }
+    ],
+    "covered": [
+      {
+        "behavior": "login",
+        "detail": "Valid credentials return JWT",
+        "test_file": "auth_test.go",
+        "test_name": "TestLoginSuccess"
+      }
+    ],
+    "summary": {
+      "total_behaviors": 10,
+      "fully_covered": 7,
+      "gaps_found": 5
+    }
+  }
+
+A behavior can appear in BOTH gaps and covered (partial coverage).
+"fully_covered" counts behaviors in covered but NOT in gaps.
+
+### UNSPECIFIED Gaps
+
+If check finds significant code behavior not in the spec, it reports:
+
+  {"behavior": "UNSPECIFIED", "detail": "Rate limiting logic exists but is not in spec"}
+
+Action: add the missing behavior to the spec, then write a test for it.
+
+### Validation Report (.vex/validation.json)
+
+  {
+    "complete": false,
+    "suggestions": [
+      {
+        "section": "Auth",
+        "behavior_name": "logout",
+        "description": "What happens when user logs out",
+        "relation": "new"
+      }
+    ]
+  }
+
+"relation" is "new" for missing behaviors or "extends <name>" for
+incomplete ones. "remove: not a behavior" flags non-behavioral entries.
+
+## Exit Codes
+- 0: clean (no gaps, spec complete)
+- 1: gaps or suggestions found
+- 2: fatal error (file not found, invalid config)
+
+## Workflow
+
+1. Receive task description
+2. Run: vex spec "description"
+3. Review .vex/vexspec.yaml — edit if needed
+4. Run: vex validate — read .vex/validation.json
+5. Address suggestions, repeat step 4 until complete
+6. Implement code and tests
+7. Run: vex check — read .vex/report.json
+8. For each gap: write the missing test
+9. Repeat steps 7-8 until exit code 0
+
+On subsequent changes, use drift to skip unchanged sections:
 
   vex check --drift
 
-This compares git history and uncommitted changes against section
-paths. Only sections with changes since the last check are sent
-to the LLM. Cost converges toward zero for stable code.
+## Adding to an Existing Spec
 
-To see which sections have drifted without running a check:
-  vex drift
+Append new sections:
+  vex spec "Add billing with Stripe integration"
 
-## Cost Optimization
-Vex uses a two-pass strategy to minimize LLM cost:
-- Pass 1: sends only test files and behaviors (cheap triage)
-- Pass 2: sends source + tests only for behaviors flagged as uncovered
-Well-tested codebases skip pass 2 entirely.
+Add behaviors to an existing section:
+  vex spec "Add password reset flow" --extend Auth
 
 ## Commands
   vex check                          # full check
@@ -106,6 +177,16 @@ Well-tested codebases skip pass 2 entirely.
   vex spec "desc" --extend "Name"    # add to existing section
   vex drift                          # show which sections changed
   vex init                           # create vex.yaml config
+  vex guide                          # print this guide
+
+## Output Files
+- .vex/vexspec.yaml    — project spec (source of truth, committed to git)
+- .vex/report.json     — check report (gaps + covered)
+- .vex/validation.json — validation results
+- .vex/drift.json      — drift detection results
+
+IMPORTANT: Always read the full report from these files.
+Stdout output may be truncated by your environment.
 `
 
 func newGuideCmd() *cobra.Command {

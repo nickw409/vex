@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nwiley/vex/internal/lang"
+	"github.com/nickw409/vex/internal/lang"
 )
 
 func TestFilterByLanguageGo(t *testing.T) {

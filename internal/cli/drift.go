@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nwiley/vex/internal/diff"
-	"github.com/nwiley/vex/internal/spec"
+	"github.com/nickw409/vex/internal/diff"
+	"github.com/nickw409/vex/internal/spec"
 	"github.com/spf13/cobra"
 )
 

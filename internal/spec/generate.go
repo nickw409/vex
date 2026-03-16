@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nwiley/vex/internal/provider"
+	"github.com/nickw409/vex/internal/provider"
 	"gopkg.in/yaml.v3"
 )
 

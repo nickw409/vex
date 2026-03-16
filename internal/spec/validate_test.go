@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/nwiley/vex/internal/provider"
+	"github.com/nickw409/vex/internal/provider"
 )
 
 type mockProvider struct {

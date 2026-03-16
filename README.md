@@ -20,20 +20,20 @@ Vex uses a two-pass strategy: pass 1 sends only test files (cheap triage), pass 
 **One-liner** (downloads a prebuilt binary):
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/nwiley/vex/main/install.sh | sh
+curl -fsSL https://raw.githubusercontent.com/nickw409/vex/main/install.sh | sh
 ```
 
 Install a specific version or to a custom directory:
 
 ```bash
-VEX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/nwiley/vex/main/install.sh | sh
-VEX_INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/nwiley/vex/main/install.sh | sh
+VEX_VERSION=v0.1.0 curl -fsSL https://raw.githubusercontent.com/nickw409/vex/main/install.sh | sh
+VEX_INSTALL_DIR=~/.local/bin curl -fsSL https://raw.githubusercontent.com/nickw409/vex/main/install.sh | sh
 ```
 
 **From source** (requires Go 1.22+):
 
 ```bash
-go install github.com/nwiley/vex/cmd/vex@latest
+go install github.com/nickw409/vex/cmd/vex@latest
 ```
 
 Requires the [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) to be installed and authenticated.

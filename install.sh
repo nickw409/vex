@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
 
-REPO="nwiley/vex"
+REPO="nickw409/vex"
 INSTALL_DIR="${VEX_INSTALL_DIR:-/usr/local/bin}"
 VERSION="${VEX_VERSION:-latest}"
 

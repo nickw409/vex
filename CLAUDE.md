@@ -30,7 +30,7 @@ Makefile          Build, test, install, and release targets
 
 ## Key Conventions
 
-- Go 1.24, module `github.com/nwiley/vex`
+- Go 1.24, module `github.com/nickw409/vex`
 - CLI built with `spf13/cobra`
 - Tests use stdlib `testing` only — no external test frameworks
 - Test files live alongside source (`*_test.go`)
@@ -77,4 +77,4 @@ gh release create v0.X.0 dist/*.tar.gz --title "v0.X.0" --notes "Release notes"
 
 **What `make release` produces:** cross-compiled tarballs in `dist/` for linux/darwin amd64/arm64. Each contains a single `vex` binary.
 
-**Users install via:** `curl -fsSL https://raw.githubusercontent.com/nwiley/vex/main/install.sh | sh` — downloads the right binary for their OS/arch from GitHub releases. Supports `VEX_VERSION` and `VEX_INSTALL_DIR` env vars.
+**Users install via:** `curl -fsSL https://raw.githubusercontent.com/nickw409/vex/main/install.sh | sh` — downloads the right binary for their OS/arch from GitHub releases. Supports `VEX_VERSION` and `VEX_INSTALL_DIR` env vars.

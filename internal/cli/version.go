@@ -3,7 +3,7 @@ package cli
 import (
 	"fmt"
 
-	"github.com/nwiley/vex/internal/version"
+	"github.com/nickw409/vex/internal/version"
 	"github.com/spf13/cobra"
 )
 

@@ -3,7 +3,7 @@ package provider
 import (
 	"testing"
 
-	"github.com/nwiley/vex/internal/config"
+	"github.com/nickw409/vex/internal/config"
 )
 
 func TestNewClaudeCLI(t *testing.T) {

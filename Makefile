@@ -3,9 +3,9 @@ COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 LDFLAGS = -s -w \
-	-X github.com/nwiley/vex/internal/version.Version=$(VERSION) \
-	-X github.com/nwiley/vex/internal/version.Commit=$(COMMIT) \
-	-X github.com/nwiley/vex/internal/version.Date=$(DATE)
+	-X github.com/nickw409/vex/internal/version.Version=$(VERSION) \
+	-X github.com/nickw409/vex/internal/version.Commit=$(COMMIT) \
+	-X github.com/nickw409/vex/internal/version.Date=$(DATE)
 
 DIST = dist
 

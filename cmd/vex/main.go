@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/nwiley/vex/internal/cli"
+	"github.com/nickw409/vex/internal/cli"
 )
 
 func main() {

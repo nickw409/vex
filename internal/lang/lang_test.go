@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/nwiley/vex/internal/config"
+	"github.com/nickw409/vex/internal/config"
 )
 
 func TestDetectGo(t *testing.T) {

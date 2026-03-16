@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/nwiley/vex/internal/provider"
-	"github.com/nwiley/vex/internal/report"
-	"github.com/nwiley/vex/internal/spec"
+	"github.com/nickw409/vex/internal/provider"
+	"github.com/nickw409/vex/internal/report"
+	"github.com/nickw409/vex/internal/spec"
 )
 
 type mockProvider struct {

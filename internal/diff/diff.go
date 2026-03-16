@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/nwiley/vex/internal/lang"
+	"github.com/nickw409/vex/internal/lang"
 )
 
 func ChangedFiles(dir string) ([]string, error) {

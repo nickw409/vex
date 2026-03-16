@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/nwiley/vex/internal/provider"
+	"github.com/nickw409/vex/internal/provider"
 )
 
 type ValidationResult struct {

@@ -1,4 +1,4 @@
-module github.com/nwiley/vex
+module github.com/nickw409/vex
 
 go 1.22.10
 

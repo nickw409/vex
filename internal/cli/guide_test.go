@@ -1,0 +1,36 @@
+package cli
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func TestGuideOutput(t *testing.T) {
+	cmd := NewRootCmd()
+	buf := new(bytes.Buffer)
+	cmd.SetOut(buf)
+	cmd.SetArgs([]string{"guide"})
+
+	if err := cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+
+	output := buf.String()
+	if output == "" {
+		t.Error("guide should produce output")
+	}
+
+	for _, want := range []string{
+		"vexspec",
+		"behaviors",
+		"Workflow",
+		".vex/report.json",
+		".vex/validation.json",
+		"vex validate",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("guide output should contain %q", want)
+		}
+	}
+}

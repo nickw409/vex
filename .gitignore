@@ -1,0 +1,30 @@
+# Binary
+/vex
+
+# Vex output
+.vex/
+
+# Claude
+.claude/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Config (user-specific)
+vex.yaml

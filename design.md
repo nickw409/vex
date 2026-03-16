@@ -12,52 +12,113 @@ Vex is a spec-driven test coverage auditor. It takes a structured spec describin
 
 ```
 1. Agent gets task description
-2. Agent writes vexspec from task description (BEFORE or DURING coding, NOT after)
-3. Agent writes code + tests
-4. Agent runs: vex check ./path/ --spec feature.vexspec.yaml
-5. Vex reports gaps as JSON → agent fixes → repeat step 4
-6. No gaps (exit 0) → done
+2. Agent writes/updates .vex/vexspec.yaml from task description (BEFORE or DURING coding, NOT after)
+3. Agent runs: vex validate → reviews .vex/validation.json, updates spec if needed
+4. Agent writes code + tests
+5. Agent runs: vex check → reviews .vex/report.json
+6. Agent fixes gaps → repeat step 5
+7. No gaps (exit 0) → done
 ```
 
 The spec MUST come from intent/task description, not from reading the implementation. Otherwise the spec just confirms what was written, defeating the purpose.
 
-## Spec Format (vexspec.yaml)
+## Spec Format (.vex/vexspec.yaml)
+
+The vexspec lives at `.vex/vexspec.yaml`. One file per project, structured as a living design doc. All paths are absolute from the project root.
+
+### Unified Project Spec
 
 ```yaml
-feature: JWT Authentication
+project: MyApp
 description: |
-  Users authenticate with username/password and receive a JWT token.
-  Tokens are used for subsequent API requests via Authorization header.
+  One-line description of the project.
 
-behaviors:
-  - name: login
+shared:
+  - name: error-handling
     description: |
-      POST /login accepts username and password.
-      Returns a JWT token with 1 hour expiry on success.
-      Returns 401 with error message on invalid credentials.
+      Behaviors that apply across multiple sections.
+      Referenced by name from individual sections.
 
-  - name: token-validation
+sections:
+  - name: Auth
+    path: internal/auth
     description: |
-      Protected endpoints check Authorization header for valid JWT.
-      Expired tokens are rejected with 401.
-      Malformed tokens are rejected with 401.
-      Missing header returns 401.
+      JWT authentication with bcrypt password hashing.
+    shared: [error-handling]
+    behaviors:
+      - name: login
+        description: |
+          POST /login accepts username and password.
+          Returns a JWT token with 1 hour expiry on success.
+          Returns 401 with error message on invalid credentials.
 
-  - name: refresh
-    description: |
-      POST /refresh accepts a valid, non-expired token.
-      Returns a new token with fresh expiry.
-      Rejects expired tokens.
+      - name: token-validation
+        description: |
+          Protected endpoints check Authorization header for valid JWT.
+          Expired tokens are rejected with 401.
+          Malformed tokens are rejected with 401.
+
+    subsections:
+      - name: Token Refresh
+        file: internal/auth/refresh.go
+        behaviors:
+          - name: refresh
+            description: |
+              POST /refresh accepts a valid, non-expired token.
+              Returns a new token with fresh expiry.
+              Rejects expired tokens.
 ```
 
-Behaviors are natural language descriptions of what the feature should do. The LLM understands the intent and checks whether tests exercise it.
+### Structure
+
+- **`project`** — Project name.
+- **`shared`** — Behaviors that apply across sections. Referenced by name via `shared: [name]` on a section.
+- **`sections`** — Top-level components/domains of the project. Each has:
+  - **`name`** — Component name (not "feature" — these are architectural units).
+  - **`path`** — Directory path from project root. Can be a list for cross-directory components: `path: [src/handlers/auth.rs, src/auth/]`.
+  - **`description`** — What this component does.
+  - **`shared`** — List of shared behavior names to include when checking this section.
+  - **`behaviors`** — Section-level behaviors checked against all files in the path.
+  - **`subsections`** — Scoped to specific files or subdirectories within the section:
+    - **`path`** — Subdirectory (absolute from project root, not relative to parent section).
+    - **`file`** — Single file (absolute from project root). Use `path` or `file`, not both.
+    - **`behaviors`** — Behaviors checked only against files in this subsection's scope.
+
+### Path Rules
+
+All paths are absolute from the project root. Never relative to a parent section. This prevents ambiguity when agents generate or modify specs.
+
+```yaml
+# CORRECT — absolute paths
+- name: Simulation Engine
+  path: rsimulation-core
+  subsections:
+    - name: Optimizer
+      path: rsimulation-core/src/opt_engine/
+
+# WRONG — relative paths
+- name: Simulation Engine
+  path: rsimulation-core
+  subsections:
+    - name: Optimizer
+      path: src/opt_engine/    # relative to parent — ambiguous
+```
+
+### Design Principles
+
+- The spec doubles as a design doc. Scanning sections shows project architecture; drilling into behaviors shows what each piece does.
+- Behaviors describe observable external behavior, not implementation details.
+- One LLM call per section keeps prompts focused and cost predictable.
+- Regressions surface naturally — run `vex check` and any behavior that lost coverage appears as a gap.
+
+Behaviors are natural language descriptions of what the component should do. The LLM understands the intent and checks whether tests exercise it.
 
 ## Config (vex.yaml)
 
 ```yaml
-provider: claude            # claude-cli | anthropic | openai | ollama
-model: sonnet               # provider-specific model name
-api_key_env: ANTHROPIC_API_KEY  # env var name, not the key itself
+provider: claude-cli       # claude-cli (default, no API key needed)
+model: opus                # provider-specific model name
+max_concurrency: 4         # max parallel LLM calls (default 4)
 
 # Language detection overrides (optional, auto-detected by default)
 languages:
@@ -83,7 +144,7 @@ Input: the vexspec + source files + test files
 Question: "Given this spec describing the full intended behavior, do the tests cover all of it?"
 Output: JSON listing which behaviors are covered and which have gaps.
 
-1-2 LLM calls per run. Cheap.
+One LLM call per section, run in parallel. Cost scales with section count, not project size. Max concurrency is configurable (default 4) to avoid rate limiting or excessive cost spikes.
 
 ## Output Format (JSON to stdout)
 
@@ -136,12 +197,28 @@ type CompletionResponse struct {
 }
 ```
 
-Implementations: claude-cli (shells out, no API key needed), anthropic (API), openai (API), ollama (local).
-Start with claude-cli as default since it needs zero config.
+Default implementation: claude-cli (shells out to `claude` CLI, no API key needed).
+Future providers: anthropic (API), openai (API), ollama (local).
+
+## Output
+
+Results are written to the `.vex/` directory:
+- `.vex/vexspec.yaml` — the project spec (source of truth)
+- `.vex/report.json` — full check report (gaps + covered behaviors)
+- `.vex/validation.json` — spec validation results
+
+JSON is also printed to stdout. Errors and usage logging go to stderr.
+
+## Usage Logging
+
+After each LLM call, vex logs token usage and cost to stderr:
+```
+[vex] tokens: 28878 in / 4645 out | cost: $0.2436 | time: 66.7s
+```
 
 ## Diff Mode
 
-`vex check --diff --spec feature.vexspec.yaml`
+`vex check --diff`
 
 - Runs `git diff HEAD` to get changed files
 - Filters to only source + test files matching language patterns
@@ -166,11 +243,13 @@ Note: `git diff HEAD` includes unstaged files. Code is committed only after it p
 
 ## Phases
 
-1. **scaffold** — Go module, cobra CLI skeleton, config parsing, vex.yaml format
-2. **provider** — LLM provider abstraction + claude-cli implementation (first provider, no API key needed)
-3. **spec** — vexspec.yaml parsing + `vex validate` command (first LLM-powered feature)
-4. **check** — core gap detection engine, file discovery, JSON output, exit codes
-5. **diff** — `--diff` mode, `vex guide` command, additional providers (anthropic, openai, ollama)
+1. **scaffold** — Go module, cobra CLI skeleton, config parsing, vex.yaml format ✓
+2. **provider** — LLM provider abstraction + claude-cli implementation ✓
+3. **spec** — vexspec.yaml parsing + `vex validate` command ✓
+4. **check** — core gap detection engine, file discovery, JSON output, exit codes ✓
+5. **diff** — `--diff` mode, `vex guide` command ✓
+6. **unified-spec** — unified project spec format (.vex/vexspec.yaml with sections, subsections, shared behaviors)
+7. **spec-gen** — `vex spec "description"` command to generate vexspec from task description
 
 ## Future Integration with Arc
 

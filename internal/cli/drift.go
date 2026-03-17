@@ -47,7 +47,7 @@ func newDriftCmd() *cobra.Command {
 			}
 
 			for _, section := range ps.Sections {
-				paths := spec.SectionPaths(&section)
+				paths := spec.SectionAllPaths(&section)
 				if len(paths) == 0 {
 					continue
 				}

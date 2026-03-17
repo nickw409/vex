@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/nickw409/vex/internal/check"
 	"github.com/nickw409/vex/internal/diff"
@@ -62,7 +63,7 @@ func newCheckCmd() *cobra.Command {
 					log.Info("checking drift since %s", since.Format("2006-01-02 15:04:05"))
 					var drifted []spec.Section
 					for _, sec := range sections {
-						paths := spec.SectionPaths(&sec)
+						paths := spec.SectionAllPaths(&sec)
 						result, err := diff.Drift(cwd, paths, since)
 						if err != nil {
 							log.Info("warning: drift check failed for %s: %v", sec.Name, err)
@@ -93,13 +94,16 @@ func newCheckCmd() *cobra.Command {
 				}
 
 				paths := spec.SectionPaths(sec)
-				if len(paths) == 0 {
+				files := spec.SectionFiles(sec)
+
+				if len(paths) == 0 && len(files) == 0 {
 					continue
 				}
 
 				srcMap := make(map[string]string)
 				testMap := make(map[string]string)
 
+				// path: entries — walk directories for all source and test files
 				for _, dir := range paths {
 					l, err := lang.Detect(dir, cfg.Languages)
 					if err != nil {
@@ -126,6 +130,24 @@ func newCheckCmd() *cobra.Command {
 							return fmt.Errorf("reading %s: %w", f, err)
 						}
 						testMap[f] = string(data)
+					}
+				}
+
+				// file: entries — classify as source or test, then read
+				if len(files) > 0 {
+					// Detect language from the first file's directory
+					l, langErr := lang.Detect(filepath.Dir(files[0]), cfg.Languages)
+
+					for _, f := range files {
+						data, err := os.ReadFile(f)
+						if err != nil {
+							return fmt.Errorf("reading %s: %w", f, err)
+						}
+						if langErr == nil && lang.IsTestFile(f, l) {
+							testMap[f] = string(data)
+						} else {
+							srcMap[f] = string(data)
+						}
 					}
 				}
 

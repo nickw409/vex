@@ -112,9 +112,21 @@ sections:
 	}
 
 	paths := SectionPaths(sec)
-	// app (section), app/handlers (from file auth.go), app/handlers/analysis/, app/db/queries/
-	if len(paths) != 4 {
-		t.Errorf("expected 4 paths, got %d: %v", len(paths), paths)
+	// app (section path), app/handlers/analysis/, app/db/queries/ (subsection paths)
+	if len(paths) != 3 {
+		t.Errorf("expected 3 paths, got %d: %v", len(paths), paths)
+	}
+
+	files := SectionFiles(sec)
+	// app/handlers/auth.go (subsection file)
+	if len(files) != 1 || files[0] != "app/handlers/auth.go" {
+		t.Errorf("expected [app/handlers/auth.go], got %v", files)
+	}
+
+	allPaths := SectionAllPaths(sec)
+	// app, app/handlers (from file dir), app/handlers/analysis/, app/db/queries/
+	if len(allPaths) != 4 {
+		t.Errorf("expected 4 allPaths, got %d: %v", len(allPaths), allPaths)
 	}
 }
 

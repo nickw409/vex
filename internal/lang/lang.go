@@ -135,6 +135,11 @@ func FindFiles(dir string, lang *Language) (sourceFiles []string, testFiles []st
 	return
 }
 
+// IsTestFile reports whether the given filename matches the language's test patterns.
+func IsTestFile(filename string, lang *Language) bool {
+	return matchesAny(filepath.Base(filename), lang.TestPatterns)
+}
+
 func isTest(name string, patterns []string) bool {
 	return matchesAny(name, patterns)
 }

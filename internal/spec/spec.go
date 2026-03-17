@@ -18,6 +18,7 @@ type ProjectSpec struct {
 type Section struct {
 	Name         string       `yaml:"name"`
 	Path         PathList     `yaml:"path,omitempty"`
+	File         PathList     `yaml:"file,omitempty"`
 	Description  string       `yaml:"description"`
 	Shared       []string     `yaml:"shared,omitempty"`
 	Behaviors    []Behavior   `yaml:"behaviors,omitempty"`
@@ -27,7 +28,7 @@ type Section struct {
 type Subsection struct {
 	Name      string     `yaml:"name"`
 	Path      PathList   `yaml:"path,omitempty"`
-	File      string     `yaml:"file,omitempty"`
+	File      PathList   `yaml:"file,omitempty"`
 	Behaviors []Behavior `yaml:"behaviors,omitempty"`
 }
 
@@ -119,7 +120,7 @@ func (ps *ProjectSpec) validate() error {
 			if sub.Name == "" {
 				return fmt.Errorf("subsection in %q missing required field: name", sec.Name)
 			}
-			if len(sub.Path) > 0 && sub.File != "" {
+			if len(sub.Path) > 0 && len(sub.File) > 0 {
 				return fmt.Errorf("subsection %q in %q has both path and file; use one or the other", sub.Name, sec.Name)
 			}
 
@@ -165,7 +166,7 @@ func (ps *ProjectSpec) AllBehaviors(sec *Section) []Behavior {
 	return all
 }
 
-// SectionPaths returns all directory/file paths relevant to a section.
+// SectionPaths returns directories from path: entries to walk for file discovery.
 func SectionPaths(sec *Section) []string {
 	seen := make(map[string]bool)
 	var paths []string
@@ -182,11 +183,65 @@ func SectionPaths(sec *Section) []string {
 	}
 
 	for _, sub := range sec.Subsections {
-		if sub.File != "" {
-			add(filepath.Dir(sub.File))
-		}
 		for _, p := range sub.Path {
 			add(p)
+		}
+	}
+
+	return paths
+}
+
+// SectionFiles returns explicit file paths from file: entries.
+func SectionFiles(sec *Section) []string {
+	seen := make(map[string]bool)
+	var files []string
+
+	add := func(f string) {
+		if !seen[f] {
+			files = append(files, f)
+			seen[f] = true
+		}
+	}
+
+	for _, f := range sec.File {
+		add(f)
+	}
+
+	for _, sub := range sec.Subsections {
+		for _, f := range sub.File {
+			add(f)
+		}
+	}
+
+	return files
+}
+
+// SectionAllPaths returns all directories relevant to a section, combining
+// path: entries and parent directories of file: entries. Used for drift detection.
+func SectionAllPaths(sec *Section) []string {
+	seen := make(map[string]bool)
+	var paths []string
+
+	add := func(p string) {
+		if !seen[p] {
+			paths = append(paths, p)
+			seen[p] = true
+		}
+	}
+
+	for _, p := range sec.Path {
+		add(p)
+	}
+	for _, f := range sec.File {
+		add(filepath.Dir(f))
+	}
+
+	for _, sub := range sec.Subsections {
+		for _, p := range sub.Path {
+			add(p)
+		}
+		for _, f := range sub.File {
+			add(filepath.Dir(f))
 		}
 	}
 

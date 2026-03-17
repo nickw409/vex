@@ -62,11 +62,39 @@ The spec lives at .vex/vexspec.yaml. All paths are absolute from project root.
               description: |
                 POST /refresh returns new access token.
 
+## Scoping Sections to Code
+
+Use "path" for directories (walks for all source and test files):
+  path: internal/auth                      # single directory
+  path: [internal/auth, internal/session]  # multiple directories
+
+Use "file" for specific files (classified as source or test automatically):
+  file: hn_jobs.py                         # single file
+  file: [src/auth.py, tests/test_auth.py]  # source + test files
+
+Both work on sections and subsections. You can combine them:
+  path: tests/           # walk for test files
+  file: src/auth.py      # just this source file
+
+Files listed under "file" are classified as source or test using language
+patterns (e.g., test_*.py, *_test.go). This works with any project layout:
+
+  # Tests alongside source
+  file: [auth.py, test_auth.py]
+
+  # Separate test directory
+  file: [src/auth.py, tests/test_auth.py]
+
+  # Walk a directory + specific files
+  path: tests/
+  file: [src/auth.py, src/session.py]
+
 Key rules:
-- sections map to directories via "path"
-- subsections scope to a directory ("path") or single file ("file"), not both
+- "path" walks a directory tree for all matching files
+- "file" includes exactly the files listed (no walking)
+- subsections use "path" or "file", not both
 - shared behaviors are referenced by name in a section's "shared" list
-- paths support string or list: "path: foo" or "path: [foo, bar]"
+- both "path" and "file" accept a string or list: "path: foo" or "path: [foo, bar]"
 
 ## Writing Behaviors
 

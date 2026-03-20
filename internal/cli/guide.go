@@ -213,6 +213,20 @@ Add behaviors to an existing section:
 - .vex/validation.json — validation results
 - .vex/drift.json      — drift detection results
 
+## Installing & Updating
+
+Install:
+  go install github.com/nickw409/vex/cmd/vex@latest
+
+Update to latest:
+  go install github.com/nickw409/vex/cmd/vex@latest
+
+Install a specific version:
+  go install github.com/nickw409/vex/cmd/vex@v1.1.2
+
+Check current version:
+  vex version
+
 IMPORTANT: Always read the full report from these files.
 Stdout output may be truncated by your environment.
 `

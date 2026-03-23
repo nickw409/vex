@@ -57,6 +57,7 @@ Additionally, flag any existing behavior that is NOT actually a behavior:
 - Interface contracts (e.g. "Provider must implement Complete()") are NOT behaviors
 - Lists of supported values (e.g. "Supports Go, Python, Java") are NOT behaviors
 - A real behavior has observable input → output or describes something a caller does and gets a result
+- Mathematical formulas and equations ARE valid behaviors — they define a correctness contract that tests must verify. Do NOT flag these as non-behavioral.
 When you find non-behavioral entries, include them in suggestions with relation: "remove: not a behavior — <reason>".`
 
 func ValidateProject(ctx context.Context, p provider.Provider, ps *ProjectSpec) (*ValidationResult, error) {

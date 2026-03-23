@@ -60,8 +60,11 @@ A behavior is NOT:
 A behavior IS:
 - Something a user or caller does and gets a result (e.g. "Returns error when file not found")
 - Something with observable input → output (e.g. "Marshals report to indented JSON")
+- A mathematical formula or equation that the implementation must satisfy (e.g. "Computes Black-Scholes call price: C = S·N(d1) - K·e^(-rT)·N(d2)"). Include the formula itself in the description so tests can be verified against it.
 
-Descriptions must be stable — describe WHAT happens, not HOW. Do not reference specific implementation mechanisms (e.g. "strips markdown fences") that may change. Describe the observable contract (e.g. "extracts JSON from LLM response even when wrapped in preamble text").`
+Descriptions must be stable — describe WHAT happens, not HOW. Do not reference specific implementation mechanisms (e.g. "strips markdown fences") that may change. Describe the observable contract (e.g. "extracts JSON from LLM response even when wrapped in preamble text").
+
+When a behavior involves a formula or numerical method, include the formula directly in the description. This ensures test coverage is verified against the mathematical definition, not just that a function exists.`
 
 const generateExtendSystemPrompt = `You are a spec writer for a test coverage auditor called Vex. You will receive:
 1. An existing section from a vexspec
@@ -101,6 +104,8 @@ A behavior is NOT:
 - A data structure or type definition (e.g. "Report contains these fields")
 - An interface contract (e.g. "Provider must implement Complete()")
 - A list of supported values (e.g. "Supports Go, Python, Java")
+
+A behavior IS also a mathematical formula or equation that the implementation must satisfy. Include the formula in the description when applicable.
 
 Descriptions must be stable — describe WHAT happens, not HOW.`
 

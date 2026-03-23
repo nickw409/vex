@@ -53,7 +53,8 @@ Rules:
 - Be specific about which test file and test function covers each behavior.
 - For gaps, suggest concrete test names and what they should assert.
 - Do NOT invent behaviors beyond what the spec describes. The spec is the scope boundary.
-- If a behavior has sub-points, each sub-point can be a separate covered/gap entry, but the behavior name stays the same.`
+- If a behavior has sub-points, each sub-point can be a separate covered/gap entry, but the behavior name stays the same.
+- If a behavior description contains a mathematical formula, equation, or numerical method, verify that tests assert correctness using known inputs with expected outputs, boundary/edge conditions, or convergence/statistical properties — not merely that the function is called or runs without error. A formula-bearing behavior is covered only when the tests would catch an incorrect implementation of that formula.`
 
 const pass2SystemPrompt = `You are a test coverage auditor. You will receive:
 1. A component specification with named behaviors describing intended functionality
@@ -88,6 +89,7 @@ Rules:
 - For gaps, suggest concrete test names and what they should assert.
 - Do NOT invent behaviors beyond what the spec describes. The spec is the scope boundary.
 - If a behavior has sub-points, each sub-point can be a separate covered/gap entry, but the behavior name stays the same.
+- If a behavior description contains a mathematical formula, equation, or numerical method, verify that tests assert correctness using known inputs with expected outputs, boundary/edge conditions, or convergence/statistical properties — not merely that the function is called or runs without error. A formula-bearing behavior is covered only when the tests would catch an incorrect implementation of that formula.
 - If the source code contains significant observable behavior NOT described in the spec (e.g. concurrency, rate limiting, caching, retries, ordering guarantees), add a gap entry with behavior "UNSPECIFIED" and describe the missing spec coverage in the detail field. This helps keep the spec in sync with the code.`
 
 type checkResponse struct {

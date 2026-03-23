@@ -106,6 +106,7 @@ A behavior IS:
 - One observable external behavior with input -> output
 - Error cases included inline: "Returns 401 on invalid credentials"
 - Side effects stated: "Writes session to database"
+- A mathematical formula or equation that the code must implement correctly
 
 A behavior is NOT:
 - A data structure ("Report contains these fields")
@@ -114,6 +115,30 @@ A behavior is NOT:
 - Implementation details ("Uses bcrypt for hashing")
 
 Be specific: "returns 401" not "handles errors". Use kebab-case names.
+
+## Formulas and Equations
+
+When a behavior involves a formula, include the formula directly in the
+description. Vex will verify that tests assert mathematical correctness
+(known inputs/outputs, boundary conditions, convergence properties),
+not just that the function runs without error.
+
+Example:
+
+  behaviors:
+    - name: geometric-brownian-motion
+      description: |
+        Simulates asset price paths using GBM.
+        S(t+dt) = S(t) * exp((mu - sigma^2/2)*dt + sigma*sqrt(dt)*Z)
+        where Z ~ N(0,1). Must reproduce expected drift and volatility
+        over large sample sizes.
+    - name: black-scholes-call
+      description: |
+        Computes European call option price.
+        C = S*N(d1) - K*e^(-rT)*N(d2)
+        d1 = (ln(S/K) + (r + sigma^2/2)*T) / (sigma*sqrt(T))
+        d2 = d1 - sigma*sqrt(T)
+        Must match known analytical values for standard inputs.
 
 ## Understanding Reports
 

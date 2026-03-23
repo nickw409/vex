@@ -34,7 +34,9 @@ func TestDrift_WithChanges(t *testing.T) {
 	gitAdd(t, dir, ".")
 	gitCommit(t, dir, "initial")
 
-	since := time.Now().Add(-1 * time.Second)
+	// Use a timestamp clearly before the next commit to avoid races with
+	// git log --since granularity.
+	since := time.Now().Add(-10 * time.Second)
 
 	// Make a change and commit
 	writeFile(t, filepath.Join(dir, "src", "main.go"), "package main\n// changed")
@@ -60,7 +62,9 @@ func TestDrift_DifferentPaths(t *testing.T) {
 	gitAdd(t, dir, ".")
 	gitCommit(t, dir, "initial src")
 
-	since := time.Now().Add(-1 * time.Second)
+	// Use a timestamp clearly before the next commit to avoid races with
+	// git log --since granularity.
+	since := time.Now().Add(-10 * time.Second)
 
 	// Only lib changes after since
 	writeFile(t, filepath.Join(dir, "lib", "util.go"), "package lib")
@@ -123,7 +127,7 @@ func TestDrift_DeduplicatesOverlappingPaths(t *testing.T) {
 	gitAdd(t, dir, ".")
 	gitCommit(t, dir, "initial")
 
-	since := time.Now().Add(-1 * time.Second)
+	since := time.Now().Add(-10 * time.Second)
 
 	// Modify the file
 	writeFile(t, filepath.Join(dir, "src", "sub", "main.go"), "package main\n// changed")

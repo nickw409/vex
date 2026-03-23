@@ -11,9 +11,15 @@ var (
 	Version = ""
 	Commit  = ""
 	Date    = ""
+
+	// builtWithLdflags is true when the binary was built with make/goreleaser
+	// (ldflags set Version). False for go install builds.
+	builtWithLdflags bool
 )
 
 func init() {
+	builtWithLdflags = Version != ""
+
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return
@@ -57,4 +63,10 @@ func String() string {
 
 func Short() string {
 	return Version
+}
+
+// InstalledFromGo reports whether the binary was installed via go install
+// (as opposed to a prebuilt binary with ldflags).
+func InstalledFromGo() bool {
+	return !builtWithLdflags
 }

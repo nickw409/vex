@@ -237,6 +237,7 @@ Add behaviors to an existing section:
   vex lang add rust --test-patterns "*_test.rs" --source-patterns "*.rs"
   vex lang list                      # list available languages
   vex lang remove rust               # remove a configured language
+  vex update                         # update to latest version
   vex guide                          # print this guide
 
 ## Output Files
@@ -251,10 +252,7 @@ Install:
   go install github.com/nickw409/vex/cmd/vex@latest
 
 Update to latest:
-  go install github.com/nickw409/vex/cmd/vex@latest
-
-Install a specific version:
-  go install github.com/nickw409/vex/cmd/vex@v1.1.2
+  vex update
 
 Check current version:
   vex version

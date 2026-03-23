@@ -51,6 +51,7 @@ vex lang add rust --test-patterns "*_test.rs" --source-patterns "*.rs"
 vex lang list                                    # list built-in + configured languages
 vex lang remove rust                             # remove a configured language
 vex init                                         # create vex.yaml config
+vex update                                       # update to latest version
 vex guide                                        # print agent instructions for writing specs
 vex version                                      # print version, commit, build date
 ```

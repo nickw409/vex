@@ -151,6 +151,7 @@ All paths are absolute from the project root. Each behavior describes one observ
 | `vex lang add name --test-patterns ... --source-patterns ...` | Add a custom language |
 | `vex lang remove name` | Remove a configured language |
 | `vex init` | Create default vex.yaml config |
+| `vex update` | Update vex to the latest version |
 | `vex guide` | Print agent instructions for writing specs |
 | `vex version` | Print version, commit, and build date |
 

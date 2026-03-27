@@ -49,7 +49,7 @@ Rules:
 - Do NOT suggest: timeout handling, permission errors, graceful degradation, logging improvements, or internal error propagation paths. These are implementation concerns, not behavioral gaps.
 - A behavior is "conspicuously absent" if a reasonable user of the component would ask "wait, what happens when I do X?" and the spec has no answer.
 - If a behavior covers error cases inline (e.g. "returns error when X"), that counts. Don't re-suggest it as a separate behavior.
-- Prefer fewer, high-confidence suggestions over exhaustive lists.
+- Include all genuinely missing behaviors — do not artificially limit the count, but avoid low-confidence suggestions.
 - Use "relation": "new" for entirely missing behaviors, or "relation": "extends <name>" when an existing behavior is missing a significant aspect.
 
 Additionally, flag any existing behavior that is NOT actually a behavior:

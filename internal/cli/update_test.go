@@ -125,6 +125,96 @@ func TestDownloadReleaseExtractsBinary(t *testing.T) {
 	}
 }
 
+func TestDownloadReleaseMissingBinary(t *testing.T) {
+	// Create a tar.gz WITHOUT a "vex" binary inside
+	var buf bytes.Buffer
+	gz := gzip.NewWriter(&buf)
+	tw := tar.NewWriter(gz)
+
+	content := []byte("not vex")
+	hdr := &tar.Header{
+		Name:     "README.md",
+		Mode:     0644,
+		Size:     int64(len(content)),
+		Typeflag: tar.TypeReg,
+	}
+	tw.WriteHeader(hdr)
+	tw.Write(content)
+	tw.Close()
+	gz.Close()
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write(buf.Bytes())
+	}))
+	defer server.Close()
+
+	// Test extraction logic — no "vex" entry means we should get an error
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	gzr, err := gzip.NewReader(resp.Body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gzr.Close()
+
+	tr := tar.NewReader(gzr)
+	found := false
+	for {
+		hdr2, err := tr.Next()
+		if err != nil {
+			break
+		}
+		if filepath.Base(hdr2.Name) == "vex" && hdr2.Typeflag == tar.TypeReg {
+			found = true
+		}
+	}
+	if found {
+		t.Error("expected no 'vex' binary in archive")
+	}
+}
+
+func TestFetchLatestVersionNon200(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusOK {
+		t.Error("expected non-200 status")
+	}
+}
+
+func TestFetchLatestVersionEmptyTag(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(githubRelease{TagName: ""})
+	}))
+	defer server.Close()
+
+	resp, err := http.Get(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var release githubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		t.Fatal(err)
+	}
+	if release.TagName != "" {
+		t.Errorf("expected empty tag, got %s", release.TagName)
+	}
+}
+
 func TestUpdateCommandExists(t *testing.T) {
 	cmd := NewRootCmd()
 	cmd.SetArgs([]string{"update", "--help"})

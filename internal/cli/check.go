@@ -113,9 +113,33 @@ func newCheckCmd() *cobra.Command {
 
 			endInputs := profStart(prof, "inputs:total", "")
 			var inputs []check.SectionInput
+			var coveredOverrides []report.Covered
 			for i := range sections {
 				sec := &sections[i]
 				behaviors := ps.AllBehaviors(sec)
+
+				// Extract covered overrides — these skip the LLM entirely.
+				if len(sec.Covered) > 0 {
+					overrideSet := make(map[string]string, len(sec.Covered))
+					for _, co := range sec.Covered {
+						overrideSet[co.Behavior] = co.Reason
+					}
+
+					var filtered []spec.Behavior
+					for _, b := range behaviors {
+						if reason, ok := overrideSet[b.Name]; ok {
+							coveredOverrides = append(coveredOverrides, report.Covered{
+								Behavior: b.Name,
+								Detail:   reason,
+							})
+							log.Info("section %q: %q marked covered (override)", sec.Name, b.Name)
+						} else {
+							filtered = append(filtered, b)
+						}
+					}
+					behaviors = filtered
+				}
+
 				if len(behaviors) == 0 {
 					continue
 				}
@@ -216,6 +240,12 @@ func newCheckCmd() *cobra.Command {
 			endCheck()
 			if err != nil {
 				log.Info("check done with errors: %v", err)
+			}
+
+			// Inject covered overrides into the report.
+			if len(coveredOverrides) > 0 {
+				r.Covered = append(r.Covered, coveredOverrides...)
+				r.ComputeSummary(r.Summary.TotalBehaviors + len(coveredOverrides))
 			}
 
 			// Store per-section checksums for drift detection.

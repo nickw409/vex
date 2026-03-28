@@ -195,6 +195,18 @@ func TestReportChecksums_NoChecksums(t *testing.T) {
 	}
 }
 
+func TestReportChecksums_MalformedJSON(t *testing.T) {
+	dir := t.TempDir()
+	vexDir := filepath.Join(dir, ".vex")
+	os.MkdirAll(vexDir, 0755)
+	os.WriteFile(filepath.Join(vexDir, "report.json"), []byte(`{not valid json`), 0644)
+
+	checksums := ReportChecksums(dir)
+	if checksums != nil {
+		t.Fatalf("expected nil for malformed JSON, got %v", checksums)
+	}
+}
+
 func TestReportChecksums_WithChecksums(t *testing.T) {
 	dir := t.TempDir()
 	vexDir := filepath.Join(dir, ".vex")

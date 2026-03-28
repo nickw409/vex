@@ -27,6 +27,7 @@ func TestGuideOutput(t *testing.T) {
 		"Workflow",
 		"Section Sizing",
 		"under 10 behaviors",
+		"Covered Overrides",
 		".vex/report.json",
 		".vex/validation.json",
 		"vex validate",

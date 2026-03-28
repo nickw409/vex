@@ -471,6 +471,92 @@ func TestSectionChecksum_IncludesSubsections(t *testing.T) {
 	}
 }
 
+func TestLoadProjectWithCoveredOverrides(t *testing.T) {
+	path := writeSpec(t, `project: MyApp
+sections:
+  - name: Worker
+    path: src/worker
+    description: Worker process
+    covered:
+      - behavior: serve-loop
+        reason: tested via e2e binary spawn in tests/e2e/worker_test.rs
+    behaviors:
+      - name: serve-loop
+        description: Main event loop
+      - name: shutdown
+        description: Graceful shutdown
+`)
+
+	ps, err := LoadProject(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(ps.Sections[0].Covered) != 1 {
+		t.Fatalf("expected 1 covered override, got %d", len(ps.Sections[0].Covered))
+	}
+	co := ps.Sections[0].Covered[0]
+	if co.Behavior != "serve-loop" {
+		t.Errorf("expected behavior serve-loop, got %q", co.Behavior)
+	}
+	if co.Reason != "tested via e2e binary spawn in tests/e2e/worker_test.rs" {
+		t.Errorf("unexpected reason: %q", co.Reason)
+	}
+}
+
+func TestLoadProjectCoveredMissingBehavior(t *testing.T) {
+	path := writeSpec(t, `project: MyApp
+sections:
+  - name: Worker
+    path: src/worker
+    description: Worker process
+    covered:
+      - reason: tested via e2e
+    behaviors:
+      - name: serve-loop
+        description: Main event loop
+`)
+
+	_, err := LoadProject(path)
+	if err == nil {
+		t.Error("expected error for covered override missing behavior")
+	}
+}
+
+func TestLoadProjectCoveredMissingReason(t *testing.T) {
+	path := writeSpec(t, `project: MyApp
+sections:
+  - name: Worker
+    path: src/worker
+    description: Worker process
+    covered:
+      - behavior: serve-loop
+    behaviors:
+      - name: serve-loop
+        description: Main event loop
+`)
+
+	_, err := LoadProject(path)
+	if err == nil {
+		t.Error("expected error for covered override missing reason")
+	}
+}
+
+func TestSectionChecksumIncludesCovered(t *testing.T) {
+	sec := &Section{
+		Name:        "Worker",
+		Description: "worker",
+		Behaviors:   []Behavior{{Name: "serve-loop", Description: "loop"}},
+	}
+	sum1 := SectionChecksum(sec, nil)
+
+	sec.Covered = []CoveredOverride{{Behavior: "serve-loop", Reason: "e2e"}}
+	sum2 := SectionChecksum(sec, nil)
+	if sum1 == sum2 {
+		t.Error("checksum should change when covered overrides are added")
+	}
+}
+
 func TestSectionPathsDeduplication(t *testing.T) {
 	sec := &Section{
 		Path: PathList{"internal/auth", "internal/core"},

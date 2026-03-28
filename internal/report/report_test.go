@@ -77,6 +77,53 @@ func TestHasGaps(t *testing.T) {
 	}
 }
 
+func TestSectionChecksumsOmittedWhenEmpty(t *testing.T) {
+	r := &Report{
+		Spec:    ".vex/vexspec.yaml",
+		Gaps:    []Gap{},
+		Covered: []Covered{},
+	}
+	r.ComputeSummary(0)
+
+	data, err := r.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if strings.Contains(string(data), "section_checksums") {
+		t.Error("expected section_checksums to be omitted when nil")
+	}
+}
+
+func TestSectionChecksumsIncludedWhenPopulated(t *testing.T) {
+	r := &Report{
+		Spec:             ".vex/vexspec.yaml",
+		Gaps:             []Gap{},
+		Covered:          []Covered{},
+		SectionChecksums: map[string]string{"Auth": "abc123", "Config": "def456"},
+	}
+	r.ComputeSummary(0)
+
+	data, err := r.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var parsed struct {
+		SectionChecksums map[string]string `json:"section_checksums"`
+	}
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		t.Fatal(err)
+	}
+
+	if parsed.SectionChecksums["Auth"] != "abc123" {
+		t.Errorf("expected Auth=abc123, got %s", parsed.SectionChecksums["Auth"])
+	}
+	if parsed.SectionChecksums["Config"] != "def456" {
+		t.Errorf("expected Config=def456, got %s", parsed.SectionChecksums["Config"])
+	}
+}
+
 func TestComputeSummary(t *testing.T) {
 	r := &Report{
 		Gaps: []Gap{

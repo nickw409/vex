@@ -17,13 +17,22 @@ type ProjectSpec struct {
 }
 
 type Section struct {
-	Name         string       `yaml:"name"`
-	Path         PathList     `yaml:"path,omitempty"`
-	File         PathList     `yaml:"file,omitempty"`
-	Description  string       `yaml:"description"`
-	Shared       []string     `yaml:"shared,omitempty"`
-	Behaviors    []Behavior   `yaml:"behaviors,omitempty"`
-	Subsections  []Subsection `yaml:"subsections,omitempty"`
+	Name         string            `yaml:"name"`
+	Path         PathList          `yaml:"path,omitempty"`
+	File         PathList          `yaml:"file,omitempty"`
+	Description  string            `yaml:"description"`
+	Shared       []string          `yaml:"shared,omitempty"`
+	Behaviors    []Behavior        `yaml:"behaviors,omitempty"`
+	Subsections  []Subsection      `yaml:"subsections,omitempty"`
+	Covered      []CoveredOverride `yaml:"covered,omitempty"`
+}
+
+// CoveredOverride marks a behavior as covered without sending it to the LLM.
+// Used for behaviors tested via cross-process boundaries (e2e binary spawns,
+// FFI, IPC) that vex cannot trace.
+type CoveredOverride struct {
+	Behavior string `yaml:"behavior"`
+	Reason   string `yaml:"reason"`
 }
 
 type Subsection struct {
@@ -132,6 +141,16 @@ func (ps *ProjectSpec) validate() error {
 				if err := validateBehavior(b, i, sub.Name); err != nil {
 					return err
 				}
+			}
+		}
+
+		// Validate covered overrides
+		for i, co := range sec.Covered {
+			if co.Behavior == "" {
+				return fmt.Errorf("covered override %d in %q missing required field: behavior", i, sec.Name)
+			}
+			if co.Reason == "" {
+				return fmt.Errorf("covered override %q in %q missing required field: reason", co.Behavior, sec.Name)
 			}
 		}
 	}
@@ -249,6 +268,10 @@ func SectionChecksum(sec *Section, sharedBehaviors []Behavior) string {
 			h.Write([]byte(b.Name))
 			h.Write([]byte(b.Description))
 		}
+	}
+	for _, co := range sec.Covered {
+		h.Write([]byte(co.Behavior))
+		h.Write([]byte(co.Reason))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

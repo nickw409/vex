@@ -347,6 +347,25 @@ func TestParseGenerateResponseSubsectionBehaviorMissingName(t *testing.T) {
 	}
 }
 
+func TestParseGenerateResponseSubsectionBehaviorMissingDescription(t *testing.T) {
+	content := `- name: Auth
+  path: internal/auth
+  description: Auth module
+  behaviors:
+    - name: login
+      description: Login endpoint
+  subsections:
+    - name: Token
+      path: internal/auth/token
+      behaviors:
+        - name: refresh
+`
+	_, err := parseGenerateResponse(content)
+	if err == nil {
+		t.Error("expected error for subsection behavior missing description")
+	}
+}
+
 func TestGenerateSystemPromptFormulaSupport(t *testing.T) {
 	if !strings.Contains(generateSystemPrompt, "mathematical formula") {
 		t.Error("generateSystemPrompt should accept mathematical formulas as valid behaviors")

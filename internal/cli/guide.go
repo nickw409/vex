@@ -100,6 +100,30 @@ Key rules:
 - shared behaviors are referenced by name in a section's "shared" list
 - both "path" and "file" accept a string or list: "path: foo" or "path: [foo, bar]"
 
+## Covered Overrides
+
+Mark behaviors as covered without sending them to the LLM. Use this for
+behaviors tested via cross-process boundaries (e2e binary spawns, FFI,
+IPC) that vex cannot trace through source code.
+
+  sections:
+    - name: Worker
+      path: src/worker
+      covered:
+        - behavior: serve-loop
+          reason: tested via e2e binary spawn in tests/e2e/worker_test.rs
+        - behavior: heartbeat
+          reason: tested via integration test that spawns coordinator + worker
+      behaviors:
+        - name: serve-loop
+          description: ...
+        - name: heartbeat
+          description: ...
+
+Covered behaviors appear as covered in the report with the reason as
+the detail. They are excluded from LLM analysis, saving cost and time.
+Both "behavior" and "reason" are required fields.
+
 ## Writing Behaviors
 
 A behavior IS:
@@ -281,7 +305,10 @@ Add behaviors to an existing section:
 
 ## Installing & Updating
 
-Install:
+Install (binary — no Go required):
+  curl -fsSL https://raw.githubusercontent.com/nickw409/vex/main/install.sh | sh
+
+Install (Go toolchain):
   go install github.com/nickw409/vex/cmd/vex@latest
 
 Update to latest:
@@ -289,6 +316,9 @@ Update to latest:
 
 Check current version:
   vex version
+
+Always use "vex update" to update — it detects whether the binary was
+installed via Go or curl and uses the correct method automatically.
 
 IMPORTANT: Always read the full report from these files.
 Stdout output may be truncated by your environment.

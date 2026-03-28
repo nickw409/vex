@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -348,5 +349,64 @@ func TestInferProjectName(t *testing.T) {
 	expected := filepath.Base(dir)
 	if name != expected {
 		t.Errorf("expected project name %q, got %q", expected, name)
+	}
+}
+
+func TestSpecErrorGoesToStderr(t *testing.T) {
+	// Capture stdout to verify no output on error
+	origStdout := os.Stdout
+	rOut, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	cmd := NewRootCmd()
+	// No args → cobra.ExactArgs(1) error
+	cmd.SetArgs([]string{"spec"})
+	cmd.Execute()
+
+	wOut.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(rOut)
+
+	if buf.Len() > 0 {
+		t.Errorf("expected no stdout on spec error, got: %s", buf.String())
+	}
+}
+
+func TestSpecCreatePrintsSectionNamesToStderr(t *testing.T) {
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStderr := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	sections := []spec.Section{
+		{
+			Name:        "Auth",
+			Description: "Authentication",
+			Behaviors: []spec.Behavior{
+				{Name: "login", Description: "Login"},
+			},
+		},
+	}
+
+	createSpec(".vex/vexspec.yaml", sections)
+
+	w.Close()
+	os.Stderr = origStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+	output := buf.String()
+
+	if !strings.Contains(output, "Auth") {
+		t.Errorf("expected stderr to contain section name 'Auth', got %q", output)
+	}
+	if !strings.Contains(output, "1 section(s)") {
+		t.Errorf("expected stderr to contain '1 section(s)', got %q", output)
 	}
 }

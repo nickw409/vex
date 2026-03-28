@@ -163,6 +163,68 @@ func TestValidateProjectEndToEnd(t *testing.T) {
 	}
 }
 
+func TestValidateProjectWithSuggestions(t *testing.T) {
+	mock := &mockProvider{
+		response: `{
+			"complete": false,
+			"suggestions": [
+				{
+					"section": "Auth",
+					"behavior_name": "logout",
+					"description": "What happens when user logs out",
+					"relation": "new"
+				},
+				{
+					"section": "Auth",
+					"behavior_name": "login",
+					"description": "Missing test for expired credentials",
+					"relation": "extends login"
+				}
+			]
+		}`,
+	}
+
+	ps := &ProjectSpec{
+		Project: "MyApp",
+		Sections: []Section{
+			{
+				Name:        "Auth",
+				Description: "Auth module",
+				Behaviors: []Behavior{
+					{Name: "login", Description: "Login endpoint"},
+				},
+			},
+		},
+	}
+
+	result, err := ValidateProject(context.Background(), mock, ps)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Complete {
+		t.Error("expected complete=false")
+	}
+	if len(result.Suggestions) != 2 {
+		t.Fatalf("expected 2 suggestions, got %d", len(result.Suggestions))
+	}
+
+	s0 := result.Suggestions[0]
+	if s0.Section != "Auth" {
+		t.Errorf("suggestion 0: expected section Auth, got %s", s0.Section)
+	}
+	if s0.BehaviorName != "logout" {
+		t.Errorf("suggestion 0: expected behavior_name logout, got %s", s0.BehaviorName)
+	}
+	if s0.Relation != "new" {
+		t.Errorf("suggestion 0: expected relation new, got %s", s0.Relation)
+	}
+
+	s1 := result.Suggestions[1]
+	if s1.Relation != "extends login" {
+		t.Errorf("suggestion 1: expected relation 'extends login', got %s", s1.Relation)
+	}
+}
+
 func TestValidateProjectProviderError(t *testing.T) {
 	mock := &mockProvider{
 		err: fmt.Errorf("provider unavailable"),

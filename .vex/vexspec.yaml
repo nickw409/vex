@@ -89,6 +89,13 @@ sections:
           --section flag filters to a single named section.
           Returns error if named section not found in spec.
           Case-sensitive match.
+      - name: check-covered-overrides
+        description: |
+          Filters out behaviors listed in a section's covered: entries
+          before sending to the LLM. Injects them directly into the
+          report as covered entries with the reason as the detail field.
+          Covered overrides count toward total_behaviors in the summary.
+          Logs each override to stderr.
       - name: check-file-gathering
         description: |
           For each section, detects language and finds source/test
@@ -190,6 +197,12 @@ sections:
           descriptions. Provides examples (GBM, Black-Scholes)
           showing how to write formula-bearing behaviors with the
           formula itself and expected test verification criteria.
+      - name: guide-covered-overrides
+        description: |
+          Guide includes a "Covered Overrides" section explaining how
+          to mark behaviors as covered without LLM analysis. Documents
+          the covered: field with behavior and reason, use cases
+          (e2e binary spawns, FFI, IPC), and that both fields are required.
       - name: guide-section-sizing
         description: |
           Guide includes a "Section Sizing" section advising to keep
@@ -246,7 +259,14 @@ sections:
           shared behaviors have name+description with no duplicates,
           section shared refs point to existing shared behaviors,
           section behaviors have name+description, subsections have
-          name and can't have both path and file set.
+          name and can't have both path and file set. Covered overrides
+          must have both behavior and reason fields.
+      - name: spec-covered-overrides
+        description: |
+          Sections can declare covered: entries with behavior and reason
+          fields. These mark behaviors as covered without LLM analysis.
+          CoveredOverride is parsed from YAML and included in section
+          checksums for drift detection.
       - name: spec-path-list
         description: |
           PathList unmarshals both string and array YAML into a

@@ -203,13 +203,18 @@ incomplete ones. "remove: not a behavior" flags non-behavioral entries.
 
 ## Section Sizing
 
-Keep sections under 10 behaviors. Large sections are slower because
-they produce bigger prompts and longer LLM response times, and they
-cannot be parallelized internally. If a section grows past 10 behaviors,
-split it into smaller sections or use subsections.
+Keep sections under 10 behaviors. Sections are both the concurrency
+boundary and the drift boundary — each section runs as its own LLM
+call in parallel, and drift detection skips entire clean sections.
 
-Sections are checked concurrently — more smaller sections means better
-parallelism and faster total check time.
+A large section with many subsections still runs as one LLM call and
+drifts as one unit. Splitting into separate sections gives you both
+faster checks (parallel LLM calls) and finer drift granularity (only
+changed sections are re-checked). If a section grows past 10 behaviors,
+prefer splitting into independent sections over adding subsections.
+
+Use subsections when behaviors share the same code paths and must be
+evaluated together. Use separate sections when behaviors are independent.
 
 ## Workflow
 
@@ -224,13 +229,13 @@ parallelism and faster total check time.
 ### Implementation loop
 
 6. Implement code and tests
-7. Run: vex check --drift — read .vex/report.json
+7. Run: vex check — read .vex/report.json
 8. For each gap: write the missing test
 9. Repeat steps 7-8 until exit code 0
 
---drift skips sections whose files haven't changed since the last check,
-saving time and LLM calls. Use "vex check" (without --drift) after editing
-the spec without changing code, since drift only tracks file changes.
+Drift detection is on by default: vex skips sections where neither the
+code files nor the spec content have changed since the last check. Use
+"vex check --drift=false" to force a full re-check of all sections.
 
 ### Ongoing development
 
@@ -242,8 +247,8 @@ Use validate regularly as you evolve the spec:
 
 Then check when tests are ready:
 
-  vex check --drift   # skip unchanged sections (recommended)
-  vex check           # full re-check (use after spec-only edits)
+  vex check              # drift detection is on by default
+  vex check --drift=false  # force full re-check of all sections
 
 ## Adding to an Existing Spec
 
@@ -254,9 +259,9 @@ Add behaviors to an existing section:
   vex spec "Add password reset flow" --extend Auth
 
 ## Commands
-  vex check                          # full check
+  vex check                          # check (drift detection on by default)
   vex check --section "Name"         # check one section
-  vex check --drift                  # only check changed sections
+  vex check --drift=false            # force full re-check
   vex validate                       # validate spec completeness
   vex spec "description"             # generate spec sections
   vex spec "desc" --extend "Name"    # add to existing section

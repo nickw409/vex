@@ -9,10 +9,11 @@ import (
 // actionable: summary first, then gaps (the items the agent must fix), then
 // a flat list of covered behavior names for context.
 type Report struct {
-	Spec             string   `json:"spec"`
-	Summary          Summary  `json:"summary"`
-	Gaps             []Gap    `json:"gaps"`
-	CoveredBehaviors []string `json:"covered"`
+	Spec             string            `json:"spec"`
+	Summary          Summary           `json:"summary"`
+	Gaps             []Gap             `json:"gaps"`
+	CoveredBehaviors []string          `json:"covered"`
+	SectionChecksums map[string]string `json:"section_checksums,omitempty"`
 
 	// Covered holds detailed coverage entries used internally during the
 	// two-pass check. It is excluded from JSON output to keep reports small.

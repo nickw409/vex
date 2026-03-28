@@ -71,21 +71,34 @@ func newCheckCmd() *cobra.Command {
 					log.Info("no previous check found, checking all sections")
 				} else {
 					log.Info("checking drift since %s", since.Format("2006-01-02 15:04:05"))
+					prevChecksums := diff.ReportChecksums(cwd)
 					var drifted []spec.Section
 					for _, sec := range sections {
-						paths := spec.SectionAllPaths(&sec)
-						endSec := profStart(prof, "drift:section", sec.Name)
-						result, err := diff.Drift(cwd, paths, since)
-						endSec()
-						if err != nil {
-							log.Info("warning: drift check failed for %s: %v", sec.Name, err)
-							drifted = append(drifted, sec)
-							continue
-						}
-						if result != nil {
-							drifted = append(drifted, sec)
+						// Check if the section's spec content changed
+						currentSum := spec.SectionChecksum(&sec, ps.ResolveShared(&sec))
+						if prevSum, ok := prevChecksums[sec.Name]; ok && prevSum == currentSum {
+							// Spec unchanged — check file drift
+							paths := spec.SectionAllPaths(&sec)
+							endSec := profStart(prof, "drift:section", sec.Name)
+							result, err := diff.Drift(cwd, paths, since)
+							endSec()
+							if err != nil {
+								log.Info("warning: drift check failed for %s: %v", sec.Name, err)
+								drifted = append(drifted, sec)
+								continue
+							}
+							if result != nil {
+								drifted = append(drifted, sec)
+							} else {
+								log.Info("skipping clean section %q", sec.Name)
+							}
 						} else {
-							log.Info("skipping clean section %q", sec.Name)
+							if prevChecksums == nil {
+								log.Info("no stored checksums, checking section %q", sec.Name)
+							} else {
+								log.Info("spec changed for section %q", sec.Name)
+							}
+							drifted = append(drifted, sec)
 						}
 					}
 					sections = drifted
@@ -205,6 +218,12 @@ func newCheckCmd() *cobra.Command {
 				log.Info("check done with errors: %v", err)
 			}
 
+			// Store per-section checksums for drift detection.
+			r.SectionChecksums = make(map[string]string, len(ps.Sections))
+			for _, sec := range ps.Sections {
+				r.SectionChecksums[sec.Name] = spec.SectionChecksum(&sec, ps.ResolveShared(&sec))
+			}
+
 			if prof != nil {
 				prof.Print()
 				if writeErr := prof.WriteFile(filepath.Join(vexDir, "profile.json")); writeErr != nil {
@@ -220,7 +239,7 @@ func newCheckCmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&specPath, "spec", "", "path to vexspec.yaml (default: .vex/vexspec.yaml)")
 	cmd.Flags().StringVar(&section, "section", "", "check only this section")
-	cmd.Flags().BoolVar(&useDrift, "drift", false, "only check sections with changes since last check")
+	cmd.Flags().BoolVar(&useDrift, "drift", true, "only check sections with changes since last check (default true)")
 	cmd.Flags().BoolVar(&useProfile, "profile", false, "write performance profile to .vex/profile.json")
 
 	return cmd

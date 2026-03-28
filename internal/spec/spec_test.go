@@ -389,6 +389,88 @@ sections:
 	}
 }
 
+func TestResolveShared(t *testing.T) {
+	ps := &ProjectSpec{
+		Project: "Test",
+		Shared: []Behavior{
+			{Name: "err", Description: "error handling"},
+			{Name: "log", Description: "logging"},
+		},
+		Sections: []Section{
+			{Name: "A", Shared: []string{"err"}},
+		},
+	}
+
+	resolved := ps.ResolveShared(&ps.Sections[0])
+	if len(resolved) != 1 {
+		t.Fatalf("expected 1 resolved shared behavior, got %d", len(resolved))
+	}
+	if resolved[0].Name != "err" {
+		t.Errorf("expected resolved[0].Name=err, got %s", resolved[0].Name)
+	}
+}
+
+func TestSectionChecksum_Stable(t *testing.T) {
+	sec := &Section{
+		Name:        "Auth",
+		Description: "auth module",
+		Behaviors:   []Behavior{{Name: "login", Description: "POST /login"}},
+	}
+	sum1 := SectionChecksum(sec, nil)
+	sum2 := SectionChecksum(sec, nil)
+	if sum1 != sum2 {
+		t.Errorf("checksum not stable: %s != %s", sum1, sum2)
+	}
+}
+
+func TestSectionChecksum_ChangesOnEdit(t *testing.T) {
+	sec := &Section{
+		Name:        "Auth",
+		Description: "auth module",
+		Behaviors:   []Behavior{{Name: "login", Description: "POST /login"}},
+	}
+	sum1 := SectionChecksum(sec, nil)
+
+	sec.Behaviors[0].Description = "POST /login returns JWT"
+	sum2 := SectionChecksum(sec, nil)
+	if sum1 == sum2 {
+		t.Error("checksum should change when behavior description changes")
+	}
+}
+
+func TestSectionChecksum_IncludesShared(t *testing.T) {
+	sec := &Section{
+		Name:        "Auth",
+		Description: "auth module",
+		Shared:      []string{"err"},
+	}
+	shared1 := []Behavior{{Name: "err", Description: "returns 500"}}
+	shared2 := []Behavior{{Name: "err", Description: "returns 500 with trace"}}
+
+	sum1 := SectionChecksum(sec, shared1)
+	sum2 := SectionChecksum(sec, shared2)
+	if sum1 == sum2 {
+		t.Error("checksum should change when shared behavior description changes")
+	}
+}
+
+func TestSectionChecksum_IncludesSubsections(t *testing.T) {
+	sec := &Section{
+		Name:        "Auth",
+		Description: "auth module",
+		Subsections: []Subsection{
+			{Name: "Token", Behaviors: []Behavior{{Name: "refresh", Description: "refresh token"}}},
+		},
+	}
+	sum1 := SectionChecksum(sec, nil)
+
+	sec.Subsections[0].Behaviors[0].Description = "refresh access token"
+	sum2 := SectionChecksum(sec, nil)
+	if sum1 == sum2 {
+		t.Error("checksum should change when subsection behavior changes")
+	}
+}
+
 func TestSectionPathsDeduplication(t *testing.T) {
 	sec := &Section{
 		Path: PathList{"internal/auth", "internal/core"},

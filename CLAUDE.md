@@ -40,9 +40,9 @@ Makefile          Build, test, install, and release targets
 ## Commands
 
 ```bash
-vex check                                        # check test coverage against spec
+vex check                                        # check (drift detection on by default)
+vex check --drift=false                          # force full re-check of all sections
 vex check --section Config                       # check single section
-vex check --drift                                # only check sections changed since last check
 vex validate                                     # validate spec completeness
 vex spec "description"                           # generate spec sections from task
 vex spec "description" --extend Config           # add behaviors to existing section
@@ -60,7 +60,7 @@ vex version                                      # print version, commit, build 
 
 - **Spec-driven** — spec is the source of truth, not the code
 - **Two-pass check** — pass 1 sends only tests (cheap triage), pass 2 sends source only for uncovered behaviors
-- **Drift-aware** — `--drift` skips clean sections, converging cost toward zero for stable code
+- **Drift-aware** — drift detection is on by default, skipping sections where neither code nor spec changed since the last check
 - **Language agnostic** — auto-detects Go, TypeScript, JavaScript, Python, Java, Rust, C, C++, C#, Ruby, Kotlin, Swift, PHP, CUDA; multi-language projects are fully supported; custom languages can be added via `vex lang add`
 - **Agent-first** — JSON output, config files over CLI flags, guide command for agent instructions
 - **Bounded** — spec defines the scope, no infinite nitpicking

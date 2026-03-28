@@ -175,6 +175,45 @@ func TestReportModTime_WithFile(t *testing.T) {
 	}
 }
 
+func TestReportChecksums_NoFile(t *testing.T) {
+	dir := t.TempDir()
+	checksums := ReportChecksums(dir)
+	if checksums != nil {
+		t.Fatalf("expected nil, got %v", checksums)
+	}
+}
+
+func TestReportChecksums_NoChecksums(t *testing.T) {
+	dir := t.TempDir()
+	vexDir := filepath.Join(dir, ".vex")
+	os.MkdirAll(vexDir, 0755)
+	os.WriteFile(filepath.Join(vexDir, "report.json"), []byte(`{"spec":".vex/vexspec.yaml"}`), 0644)
+
+	checksums := ReportChecksums(dir)
+	if checksums != nil {
+		t.Fatalf("expected nil for report without checksums, got %v", checksums)
+	}
+}
+
+func TestReportChecksums_WithChecksums(t *testing.T) {
+	dir := t.TempDir()
+	vexDir := filepath.Join(dir, ".vex")
+	os.MkdirAll(vexDir, 0755)
+	data := `{"spec":".vex/vexspec.yaml","section_checksums":{"Auth":"abc123","Config":"def456"}}`
+	os.WriteFile(filepath.Join(vexDir, "report.json"), []byte(data), 0644)
+
+	checksums := ReportChecksums(dir)
+	if checksums == nil {
+		t.Fatal("expected checksums, got nil")
+	}
+	if checksums["Auth"] != "abc123" {
+		t.Errorf("expected Auth=abc123, got %s", checksums["Auth"])
+	}
+	if checksums["Config"] != "def456" {
+		t.Errorf("expected Config=def456, got %s", checksums["Config"])
+	}
+}
+
 func setupGitRepo(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()

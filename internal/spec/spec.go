@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"crypto/sha256"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -148,17 +149,22 @@ func validateBehavior(b Behavior, index int, context string) error {
 	return nil
 }
 
-// AllBehaviors returns all behaviors for a section, including resolved shared behaviors.
-func (ps *ProjectSpec) AllBehaviors(sec *Section) []Behavior {
-	var all []Behavior
-
+// ResolveShared returns the shared behaviors referenced by a section.
+func (ps *ProjectSpec) ResolveShared(sec *Section) []Behavior {
+	var resolved []Behavior
 	for _, ref := range sec.Shared {
 		for _, sb := range ps.Shared {
 			if sb.Name == ref {
-				all = append(all, sb)
+				resolved = append(resolved, sb)
 			}
 		}
 	}
+	return resolved
+}
+
+// AllBehaviors returns all behaviors for a section, including resolved shared behaviors.
+func (ps *ProjectSpec) AllBehaviors(sec *Section) []Behavior {
+	all := ps.ResolveShared(sec)
 
 	all = append(all, sec.Behaviors...)
 
@@ -217,6 +223,34 @@ func SectionFiles(sec *Section) []string {
 	}
 
 	return files
+}
+
+// SectionChecksum returns a SHA-256 hex digest of a section's spec content
+// (name, description, behaviors, subsections, shared refs). Used by drift
+// detection to identify spec-only changes without file modifications.
+func SectionChecksum(sec *Section, sharedBehaviors []Behavior) string {
+	h := sha256.New()
+	h.Write([]byte(sec.Name))
+	h.Write([]byte(sec.Description))
+	for _, ref := range sec.Shared {
+		h.Write([]byte(ref))
+	}
+	for _, b := range sharedBehaviors {
+		h.Write([]byte(b.Name))
+		h.Write([]byte(b.Description))
+	}
+	for _, b := range sec.Behaviors {
+		h.Write([]byte(b.Name))
+		h.Write([]byte(b.Description))
+	}
+	for _, sub := range sec.Subsections {
+		h.Write([]byte(sub.Name))
+		for _, b := range sub.Behaviors {
+			h.Write([]byte(b.Name))
+			h.Write([]byte(b.Description))
+		}
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
 // SectionAllPaths returns all directories relevant to a section, combining

@@ -109,17 +109,22 @@ sections:
           machine-readable JSON to .vex/profile.json.
       - name: check-drift-mode
         description: |
-          When --drift flag is passed, uses drift detection to
-          skip sections with no changes since the last check.
-          Only drifted sections are sent to the LLM. If no
-          previous check exists, checks all sections with a
-          warning. If all sections are clean, outputs empty
-          report. Sections where drift check fails are included
-          as a safety fallback.
+          Drift detection is on by default (--drift=true). Skips
+          sections where neither code files nor spec content have
+          changed since the last check. Compares per-section spec
+          checksums stored in report.json against current checksums
+          to detect spec-only edits. Falls back to file-only drift
+          when no stored checksums exist. If no previous check exists,
+          checks all sections with a warning. If all sections are
+          clean, outputs empty report. Sections where drift check
+          fails are included as a safety fallback. Use --drift=false
+          to force a full re-check.
       - name: check-output
         description: |
           Writes JSON report to stdout and .vex/report.json.
-          Exit code 0 if no gaps, exit code 1 if gaps found.
+          Report includes per-section spec checksums for drift
+          detection. Exit code 0 if no gaps, exit code 1 if
+          gaps found.
 
   - name: CLI Validate
     file: [internal/cli/validate.go]
@@ -188,15 +193,19 @@ sections:
       - name: guide-section-sizing
         description: |
           Guide includes a "Section Sizing" section advising to keep
-          sections under 10 behaviors. Explains that large sections
-          produce bigger prompts and longer LLM times, and that more
-          smaller sections enables better parallelism.
+          sections under 10 behaviors. Explains that sections are both
+          the concurrency boundary (parallel LLM calls) and the drift
+          boundary (skip unchanged sections). Recommends splitting into
+          independent sections over adding subsections for better
+          parallelism and finer drift granularity. Subsections are for
+          behaviors that share code paths and must be evaluated together.
       - name: guide-workflow
         description: |
           Guide workflow is structured into three phases: first-time
           spec authoring (spec, validate, fix loop), implementation
           loop (check, fix gaps, repeat), and ongoing development
-          (validate regularly, then check or check --drift).
+          (validate regularly, then check). Drift detection is on by
+          default. Notes --drift=false for forcing full re-checks.
 
   - name: CLI Update
     file: [internal/cli/update.go, internal/cli/update_test.go]
@@ -221,82 +230,91 @@ sections:
           and atomically replaces the running binary via temp file
           and rename.
 
-  - name: Spec Parsing
-    path: internal/spec
+  - name: Spec Data Model
+    file: internal/spec/spec.go
     description: |
-      Spec data structures, YAML loading, and validation.
-    subsections:
-      - name: Data Model
-        file: internal/spec/spec.go
-        behaviors:
-          - name: spec-load-project
-            description: |
-              Loads ProjectSpec from YAML file. Default path is
-              .vex/vexspec.yaml. Returns error on file not found,
-              invalid YAML, or validation failure.
-          - name: spec-validation
-            description: |
-              Validates project name is set, at least one section exists,
-              shared behaviors have name+description with no duplicates,
-              section shared refs point to existing shared behaviors,
-              section behaviors have name+description, subsections have
-              name and can't have both path and file set.
-          - name: spec-path-list
-            description: |
-              PathList unmarshals both string and array YAML into a
-              string slice. Single path "foo" becomes ["foo"], list
-              ["foo","bar"] stays as-is.
-          - name: spec-all-behaviors
-            description: |
-              AllBehaviors collects shared (resolved by name), section,
-              and subsection behaviors into one list for a section.
-          - name: spec-section-paths
-            description: |
-              SectionPaths returns deduplicated list of all paths for
-              a section: section paths, subsection paths, and parent
-              directories of subsection files.
+      Spec data structures, YAML loading, validation, and path helpers.
+    behaviors:
+      - name: spec-load-project
+        description: |
+          Loads ProjectSpec from YAML file. Default path is
+          .vex/vexspec.yaml. Returns error on file not found,
+          invalid YAML, or validation failure.
+      - name: spec-validation
+        description: |
+          Validates project name is set, at least one section exists,
+          shared behaviors have name+description with no duplicates,
+          section shared refs point to existing shared behaviors,
+          section behaviors have name+description, subsections have
+          name and can't have both path and file set.
+      - name: spec-path-list
+        description: |
+          PathList unmarshals both string and array YAML into a
+          string slice. Single path "foo" becomes ["foo"], list
+          ["foo","bar"] stays as-is.
+      - name: spec-all-behaviors
+        description: |
+          AllBehaviors collects shared (resolved by name), section,
+          and subsection behaviors into one list for a section.
+          ResolveShared returns only the shared behaviors referenced
+          by a section.
+      - name: spec-section-paths
+        description: |
+          SectionPaths returns deduplicated list of all paths for
+          a section: section paths, subsection paths, and parent
+          directories of subsection files.
+      - name: spec-section-checksum
+        description: |
+          SectionChecksum returns a SHA-256 hex digest of a section's
+          spec content: name, description, shared refs and their resolved
+          behaviors, section behaviors, and subsection names and behaviors.
+          Used by drift detection to identify spec-only changes.
 
-      - name: Validation
-        file: internal/spec/validate.go
-        behaviors:
-          - name: validate-project
-            description: |
-              Sends entire spec to LLM to find missing behaviors.
-              Returns ValidationResult with complete bool and
-              suggestions array. Each suggestion has section name,
-              behavior_name, description, and relation (new or
-              extends existing). Only suggests conspicuously absent
-              behaviors within each section's scope.
-          - name: validate-formula-tolerance
-            description: |
-              Validation prompt explicitly states that mathematical
-              formulas and equations are valid behaviors defining a
-              correctness contract. The LLM must not flag formula-
-              bearing behaviors as non-behavioral entries for removal.
+  - name: Spec Validation
+    file: internal/spec/validate.go
+    description: |
+      LLM-based spec completeness validation.
+    behaviors:
+      - name: validate-project
+        description: |
+          Sends entire spec to LLM to find missing behaviors.
+          Returns ValidationResult with complete bool and
+          suggestions array. Each suggestion has section name,
+          behavior_name, description, and relation (new or
+          extends existing). Only suggests conspicuously absent
+          behaviors within each section's scope.
+      - name: validate-formula-tolerance
+        description: |
+          Validation prompt explicitly states that mathematical
+          formulas and equations are valid behaviors defining a
+          correctness contract. The LLM must not flag formula-
+          bearing behaviors as non-behavioral entries for removal.
 
-      - name: Generation
-        file: internal/spec/generate.go
-        behaviors:
-          - name: generate-sections
-            description: |
-              Takes task description, calls LLM, returns list of
-              sections with behaviors and subsections. Validates
-              all sections have names and all behaviors have
-              name+description. Returns error if LLM response
-              is not valid YAML or fails validation.
-          - name: generate-extend
-            description: |
-              Takes task description and existing section, calls LLM
-              to generate only new behaviors/subsections that don't
-              duplicate existing ones. Returns ExtendResult.
-          - name: generate-formula-support
-            description: |
-              Both generate and extend prompts accept mathematical
-              formulas and equations as valid behaviors. When a task
-              involves a formula or numerical method, the LLM is
-              instructed to include the formula directly in the
-              behavior description so test coverage can be verified
-              against the mathematical definition.
+  - name: Spec Generation
+    file: internal/spec/generate.go
+    description: |
+      LLM-based spec section and behavior generation.
+    behaviors:
+      - name: generate-sections
+        description: |
+          Takes task description, calls LLM, returns list of
+          sections with behaviors and subsections. Validates
+          all sections have names and all behaviors have
+          name+description. Returns error if LLM response
+          is not valid YAML or fails validation.
+      - name: generate-extend
+        description: |
+          Takes task description and existing section, calls LLM
+          to generate only new behaviors/subsections that don't
+          duplicate existing ones. Returns ExtendResult.
+      - name: generate-formula-support
+        description: |
+          Both generate and extend prompts accept mathematical
+          formulas and equations as valid behaviors. When a task
+          involves a formula or numerical method, the LLM is
+          instructed to include the formula directly in the
+          behavior description so test coverage can be verified
+          against the mathematical definition.
 
   - name: Provider
     path: internal/provider
@@ -451,6 +469,12 @@ sections:
         description: |
           ComputeSummary counts fully covered (behaviors in covered
           but not in gaps) and total gap count.
+      - name: report-section-checksums
+        description: |
+          Report includes optional SectionChecksums field (map of
+          section name to SHA-256 hex string). Omitted from JSON
+          when empty. Populated by the check command for drift
+          detection of spec-only changes.
 
   - name: Language Detection
     path: internal/lang
@@ -498,6 +522,11 @@ sections:
             description: |
               Returns the modification time of .vex/report.json as the
               last check timestamp. Returns zero time if file missing.
+          - name: report-checksums
+            description: |
+              Reads section_checksums from .vex/report.json. Returns
+              a map of section name to SHA-256 hex digest. Returns nil
+              if file missing, unreadable, or has no checksums field.
 
       - name: Drift Command
         file: internal/cli/drift.go

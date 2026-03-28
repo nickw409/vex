@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nickw409/vex/internal/perf"
 	"github.com/nickw409/vex/internal/provider"
 	"github.com/nickw409/vex/internal/report"
 	"github.com/nickw409/vex/internal/spec"
@@ -611,6 +612,60 @@ func TestRunProjectExhaustsRetries(t *testing.T) {
 	// 1 initial + 2 retries = 3 total
 	if calls != 3 {
 		t.Errorf("expected 3 calls (1 + 2 retries), got %d", calls)
+	}
+}
+
+func TestUnspecifiedOnlyInPass2(t *testing.T) {
+	if strings.Contains(pass1SystemPrompt, "UNSPECIFIED") {
+		t.Error("pass1SystemPrompt should NOT contain 'UNSPECIFIED' — detection is pass-2-only")
+	}
+	if !strings.Contains(pass2SystemPrompt, "UNSPECIFIED") {
+		t.Error("pass2SystemPrompt should contain 'UNSPECIFIED'")
+	}
+}
+
+func TestRunProjectPermanentErrorNoRetry(t *testing.T) {
+	// Permanent error (not rate limit) — should fail immediately, no retries
+	failProvider := &sectionFailProvider{
+		failSection: "perm",
+		response:    gapResponse,
+	}
+
+	inputs := []SectionInput{makeInput("perm")}
+	_, err := RunProject(context.Background(), failProvider, &spec.ProjectSpec{}, inputs, 1, nil)
+	if err == nil {
+		t.Fatal("expected error for permanent failure")
+	}
+	if strings.Contains(err.Error(), "rate") {
+		t.Error("permanent errors should not be classified as retryable")
+	}
+}
+
+func TestRunProjectWithProfile(t *testing.T) {
+	mp := &coveredMockProvider{}
+	inputs := []SectionInput{makeInput("sec1")}
+
+	prof := perf.New()
+
+	_, err := RunProject(context.Background(), mp, &spec.ProjectSpec{}, inputs, 2, prof)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	spans := prof.Spans()
+	if len(spans) == 0 {
+		t.Error("expected profiling spans to be recorded when prof is non-nil")
+	}
+
+	// Should have at least a pass 1 span
+	foundPass1 := false
+	for _, s := range spans {
+		if strings.Contains(s.Name, "pass 1") {
+			foundPass1 = true
+		}
+	}
+	if !foundPass1 {
+		t.Error("expected a 'pass 1' span in profile")
 	}
 }
 

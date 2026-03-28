@@ -87,18 +87,38 @@ func ReportModTime(dir string) time.Time {
 	return info.ModTime()
 }
 
-// ReportChecksums reads section_checksums from .vex/report.json.
-// Returns nil if the file doesn't exist or has no checksums.
-func ReportChecksums(dir string) map[string]string {
+// PreviousReport holds fields from a previous report.json needed for
+// drift detection and result carry-forward.
+type PreviousReport struct {
+	SectionChecksums map[string]string `json:"section_checksums"`
+	Gaps             []struct {
+		Behavior   string `json:"behavior"`
+		Detail     string `json:"detail"`
+		Suggestion string `json:"suggestion"`
+	} `json:"gaps"`
+	Covered []string `json:"covered"`
+}
+
+// LoadPreviousReport reads .vex/report.json and returns its contents.
+// Returns nil if the file doesn't exist or is unreadable.
+func LoadPreviousReport(dir string) *PreviousReport {
 	data, err := os.ReadFile(filepath.Join(dir, ".vex", "report.json"))
 	if err != nil {
 		return nil
 	}
-	var partial struct {
-		SectionChecksums map[string]string `json:"section_checksums"`
-	}
-	if err := json.Unmarshal(data, &partial); err != nil {
+	var prev PreviousReport
+	if err := json.Unmarshal(data, &prev); err != nil {
 		return nil
 	}
-	return partial.SectionChecksums
+	return &prev
+}
+
+// ReportChecksums reads section_checksums from .vex/report.json.
+// Returns nil if the file doesn't exist or has no checksums.
+func ReportChecksums(dir string) map[string]string {
+	prev := LoadPreviousReport(dir)
+	if prev == nil {
+		return nil
+	}
+	return prev.SectionChecksums
 }

@@ -246,16 +246,27 @@ evaluated together. Use separate sections when behaviors are independent.
 
 1. Receive task description
 2. Run: vex spec "description"
-3. Review .vex/vexspec.yaml — edit if needed
+3. Edit .vex/vexspec.yaml if needed (add paths, adjust behaviors)
 4. Run: vex validate — read .vex/validation.json
 5. Address suggestions, repeat step 4 until complete: true
 
+Do NOT manually validate the YAML structure — vex validate checks
+that all required fields are present, shared refs are valid, and
+behaviors have name+description. Just write the spec and let vex
+catch structural issues.
+
 ### Implementation loop
 
-6. Implement code and tests
-7. Run: vex check — read .vex/report.json
-8. For each gap: write the missing test
-9. Repeat steps 7-8 until exit code 0
+6. Update the spec FIRST — add or modify behaviors for the task
+7. Run: vex validate — confirm spec is complete
+8. Implement code and tests
+9. Run: vex check — read .vex/report.json
+10. For each gap: write the missing test
+11. Repeat steps 9-10 until exit code 0
+
+Always update the spec before writing code. The spec drives what gets
+tested — if the spec is stale, vex check won't catch missing coverage
+for new functionality.
 
 Drift detection is on by default: vex skips sections where neither the
 code files nor the spec content have changed since the last check. Use
@@ -286,6 +297,7 @@ Add behaviors to an existing section:
   vex check                          # check (drift detection on by default)
   vex check --section "Name"         # check one section
   vex check --drift=false            # force full re-check
+  vex report                         # formatted summary of last check
   vex validate                       # validate spec completeness
   vex spec "description"             # generate spec sections
   vex spec "desc" --extend "Name"    # add to existing section

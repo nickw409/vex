@@ -352,6 +352,43 @@ func TestInferProjectName(t *testing.T) {
 	}
 }
 
+func TestSpecExtendCaseSensitive(t *testing.T) {
+	dir := t.TempDir()
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	os.MkdirAll(".vex", 0755)
+	specPath := ".vex/vexspec.yaml"
+	initialSpec := spec.ProjectSpec{
+		Project: "TestProject",
+		Sections: []spec.Section{
+			{
+				Name:        "Auth",
+				Description: "Authentication module",
+				Behaviors: []spec.Behavior{
+					{Name: "login", Description: "Authenticates user"},
+				},
+			},
+		},
+	}
+	initialData, _ := yaml.Marshal(&initialSpec)
+	os.WriteFile(specPath, initialData, 0644)
+
+	mock := &mockProvider{response: ""}
+	cmd := &cobra.Command{}
+	cmd.SetContext(context.Background())
+
+	// "auth" (lowercase) should not match "Auth" (title case)
+	err := extendSection(cmd, mock, specPath, "auth", "some description")
+	if err == nil {
+		t.Fatal("expected error for case-mismatched section name")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' in error, got: %v", err)
+	}
+}
+
 func TestSpecErrorGoesToStderr(t *testing.T) {
 	// Capture stdout to verify no output on error
 	origStdout := os.Stdout

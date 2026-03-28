@@ -57,6 +57,50 @@ func TestWriteOutputTrailingNewline(t *testing.T) {
 	}
 }
 
+func TestWriteOutputDirPermissions(t *testing.T) {
+	dir := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	if err := writeOutput("test.json", []byte(`{}`)); err != nil {
+		t.Fatalf("writeOutput returned error: %v", err)
+	}
+
+	info, err := os.Stat(filepath.Join(dir, ".vex"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.Mode().Perm() != 0755 {
+		t.Errorf("expected .vex dir permissions 0755, got %o", info.Mode().Perm())
+	}
+}
+
+func TestWriteOutputErrorWhenDirIsFile(t *testing.T) {
+	dir := t.TempDir()
+	orig, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.Chdir(orig) })
+
+	// Create .vex as a regular file to block directory creation
+	os.WriteFile(filepath.Join(dir, ".vex"), []byte("blocker"), 0644)
+
+	err = writeOutput("test.json", []byte(`{}`))
+	if err == nil {
+		t.Error("expected error when .vex is a file, not a directory")
+	}
+}
+
 func TestWriteOutputPrintsPath(t *testing.T) {
 	dir := t.TempDir()
 	orig, err := os.Getwd()

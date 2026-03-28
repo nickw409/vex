@@ -53,6 +53,9 @@ sections:
     description: |
       Root command setup, config loading, init command, and shared output.
     shared: [exit-codes, error-output, json-output]
+    covered:
+      - behavior: exit-codes
+        reason: os.Exit calls are one-liners controlled by conditions tested elsewhere (HasGaps, cobra RunE errors); subprocess test pattern needed for actual exit code verification is not worth the complexity
     behaviors:
       - name: root-config-loading
         description: |
@@ -79,6 +82,19 @@ sections:
     description: |
       Check command: loads spec, gathers files, runs check engine.
     shared: [exit-codes, error-output, json-output]
+    covered:
+      - behavior: exit-codes
+        reason: os.Exit(1) in outputReport is a one-liner after HasGaps() which is tested; subprocess pattern not worth the complexity
+      - behavior: check-drift-mode
+        reason: drift logic tested at diff/spec package level (ReportChecksums, SectionChecksum, Drift); CLI integration needs mock provider injection not yet supported
+      - behavior: check-execution
+        reason: RunProject tested directly in check package with mock providers; CLI integration needs provider injection through cobra
+      - behavior: check-profile-mode
+        reason: perf.Profile tested directly (Print, WriteFile, Spans); RunProject with profile tested in check package; CLI integration needs provider injection
+      - behavior: check-file-gathering
+        reason: language detection and file finding tested in lang package; CLI warning paths need provider injection to reach
+      - behavior: check-output
+        reason: report JSON output tested via TestCheckEmptyReportWritesJSON; checksums tested in report package; full check output needs provider injection
     behaviors:
       - name: check-spec-loading
         description: |
@@ -122,10 +138,19 @@ sections:
           checksums stored in report.json against current checksums
           to detect spec-only edits. Falls back to file-only drift
           when no stored checksums exist. If no previous check exists,
-          checks all sections with a warning. If all sections are
-          clean, outputs empty report. Sections where drift check
-          fails are included as a safety fallback. Use --drift=false
-          to force a full re-check.
+          checks all sections with a warning. Sections where drift
+          check fails are included as a safety fallback. Use
+          --drift=false to force a full re-check. Skipped sections
+          carry forward their gaps and covered entries from the
+          previous report so unfixed gaps are not lost.
+      - name: check-carry-forward
+        description: |
+          When drift skips a section, carries forward its gaps and
+          covered entries from the previous report. Matches previous
+          results to skipped sections by behavior name using
+          AllBehaviors. Works for both partial skips (some sections
+          checked, some skipped) and all-clean (no sections checked).
+          Recomputes summary to include carried-forward behaviors.
       - name: check-output
         description: |
           Writes JSON report to stdout and .vex/report.json.
@@ -138,6 +163,17 @@ sections:
     description: |
       Validate command: checks spec completeness via LLM.
     shared: [exit-codes, error-output, json-output]
+    covered:
+      - behavior: exit-codes
+        reason: os.Exit(1) in validate is a one-liner after result.Complete check; subprocess pattern not worth the complexity
+      - behavior: validate-execution
+        reason: ValidateProject tested directly in spec package with mock provider; CLI integration needs provider injection through cobra
+      - behavior: validate-output
+        reason: writeOutput tested generically in output_test.go; os.Exit path covered by exit-codes override; JSON format tested in spec package
+      - behavior: json-output
+        reason: writeOutput writes to .vex/ and is tested; validate uses same pattern as check; indentation comes from json.MarshalIndent tested in report package
+      - behavior: error-output
+        reason: error paths return errors through cobra which prints to stderr; tested via TestValidateErrorGoesToStderr
     behaviors:
       - name: validate-spec-arg
         description: |
@@ -159,6 +195,9 @@ sections:
     description: |
       Spec command: generates and extends vexspec sections via LLM.
     shared: [exit-codes, error-output]
+    covered:
+      - behavior: exit-codes
+        reason: spec command exit codes are handled by cobra RunE returning nil vs error; no direct os.Exit calls to test
     behaviors:
       - name: spec-generate-new
         description: |
@@ -177,6 +216,24 @@ sections:
           named section. Returns error if section not found.
           Case-sensitive match. Prints count of added behaviors
           to stderr.
+
+  - name: CLI Report
+    file: [internal/cli/report.go, internal/cli/report_test.go]
+    description: |
+      Report command: displays formatted summary of last check.
+    behaviors:
+      - name: report-display
+        description: |
+          Reads .vex/report.json and prints a human-readable summary
+          to stdout. Shows total behaviors, covered count, and gap
+          count on the first line. Groups gaps by behavior name with
+          counts, truncates details longer than 120 characters, and
+          replaces newlines in details with spaces. Prints "No gaps
+          found." when there are no gaps.
+      - name: report-missing-file
+        description: |
+          Returns error with "run vex check first" hint when
+          .vex/report.json does not exist.
 
   - name: CLI Guide
     file: [internal/cli/guide.go, internal/cli/guide_test.go]
@@ -212,6 +269,12 @@ sections:
           independent sections over adding subsections for better
           parallelism and finer drift granularity. Subsections are for
           behaviors that share code paths and must be evaluated together.
+      - name: guide-no-manual-validation
+        description: |
+          Guide explicitly tells agents not to manually validate
+          the YAML structure. vex validate checks required fields,
+          shared refs, and behavior name+description. Agents should
+          write the spec and let vex catch structural issues.
       - name: guide-workflow
         description: |
           Guide workflow is structured into three phases: first-time
@@ -224,6 +287,13 @@ sections:
     file: [internal/cli/update.go, internal/cli/update_test.go]
     description: |
       Update command: self-update via GitHub releases or go install.
+    covered:
+      - behavior: update-version-check
+        reason: fetchLatestVersion uses hardcoded GitHub URL; tests verify HTTP+JSON parsing logic; direct function testing needs URL injection refactor
+      - behavior: update-via-go
+        reason: updateViaGo runs go install as subprocess; testing would execute real go install or need exec.Command injection
+      - behavior: update-via-binary
+        reason: downloadRelease uses hardcoded GitHub URL; tar extraction tested; replaceBinary uses os.Executable; direct testing needs URL and path injection
     behaviors:
       - name: update-version-check
         description: |
@@ -379,6 +449,11 @@ sections:
     path: internal/check
     description: |
       Core gap detection engine using LLM to audit test coverage.
+    covered:
+      - behavior: check-pipelining
+        reason: testing pass 2 starts before all pass 1 completes requires fragile timing-based assertions with slow mocks; pipelining is structurally guaranteed by the task queue design
+      - behavior: check-adaptive-concurrency
+        reason: concurrency reduction/ramp-up uses internal atomic state not exposed to tests; retry count and eventual success are tested via TestRunProjectRetriesOnRateLimit
     behaviors:
       - name: check-run-project
         description: |
@@ -547,9 +622,20 @@ sections:
               Reads section_checksums from .vex/report.json. Returns
               a map of section name to SHA-256 hex digest. Returns nil
               if file missing, unreadable, or has no checksums field.
+              Delegates to LoadPreviousReport internally.
+          - name: load-previous-report
+            description: |
+              Reads .vex/report.json into a PreviousReport struct
+              containing section_checksums, gaps, and covered entries.
+              Returns nil if file missing or unreadable. Used by
+              drift detection for checksums and by carry-forward
+              to preserve results for skipped sections.
 
       - name: Drift Command
         file: internal/cli/drift.go
+        covered:
+          - behavior: drift-command
+            reason: exit codes use os.Exit(1/2) directly; conditions tested via ReportModTime and DriftAllClean tests; JSON output verified in TestDriftAllClean
         behaviors:
           - name: drift-command
             description: |

@@ -244,6 +244,23 @@ func SectionFiles(sec *Section) []string {
 	return files
 }
 
+const MaxSectionBehaviors = 10
+
+// OversizedSections returns section names that exceed MaxSectionBehaviors.
+func (ps *ProjectSpec) OversizedSections() []string {
+	var oversized []string
+	for _, sec := range ps.Sections {
+		count := len(sec.Behaviors)
+		for _, sub := range sec.Subsections {
+			count += len(sub.Behaviors)
+		}
+		if count > MaxSectionBehaviors {
+			oversized = append(oversized, sec.Name)
+		}
+	}
+	return oversized
+}
+
 // SectionChecksum returns a SHA-256 hex digest of a section's spec content
 // (name, description, behaviors, subsections, shared refs). Used by drift
 // detection to identify spec-only changes without file modifications.

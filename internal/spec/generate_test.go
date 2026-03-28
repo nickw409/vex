@@ -181,6 +181,52 @@ func TestParseExtendResponseBehaviorsOnly(t *testing.T) {
 	}
 }
 
+func TestParseExtendResponseBehaviorMissingName(t *testing.T) {
+	content := `behaviors:
+  - description: Missing name field
+`
+	_, err := parseExtendResponse(content)
+	if err == nil {
+		t.Error("expected error for extend behavior missing name")
+	}
+}
+
+func TestParseExtendResponseBehaviorMissingDescription(t *testing.T) {
+	content := `behaviors:
+  - name: logout
+`
+	_, err := parseExtendResponse(content)
+	if err == nil {
+		t.Error("expected error for extend behavior missing description")
+	}
+}
+
+func TestParseExtendResponseSubsectionBehaviorMissingName(t *testing.T) {
+	content := `subsections:
+  - name: Token
+    path: internal/auth/token
+    behaviors:
+      - description: Missing name
+`
+	_, err := parseExtendResponse(content)
+	if err == nil {
+		t.Error("expected error for extend subsection behavior missing name")
+	}
+}
+
+func TestParseExtendResponseSubsectionBehaviorMissingDescription(t *testing.T) {
+	content := `subsections:
+  - name: Token
+    path: internal/auth/token
+    behaviors:
+      - name: refresh
+`
+	_, err := parseExtendResponse(content)
+	if err == nil {
+		t.Error("expected error for extend subsection behavior missing description")
+	}
+}
+
 func TestParseExtendResponseInvalid(t *testing.T) {
 	_, err := parseExtendResponse("not yaml {{{")
 	if err == nil {

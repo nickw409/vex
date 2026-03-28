@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -554,6 +555,75 @@ func TestSectionChecksumIncludesCovered(t *testing.T) {
 	sum2 := SectionChecksum(sec, nil)
 	if sum1 == sum2 {
 		t.Error("checksum should change when covered overrides are added")
+	}
+}
+
+func TestOversizedSections(t *testing.T) {
+	// Build a section with 11 behaviors (over the limit)
+	var behaviors []Behavior
+	for i := 0; i < 11; i++ {
+		behaviors = append(behaviors, Behavior{
+			Name:        fmt.Sprintf("b%d", i),
+			Description: fmt.Sprintf("behavior %d", i),
+		})
+	}
+
+	ps := &ProjectSpec{
+		Project: "Test",
+		Sections: []Section{
+			{Name: "Small", Description: "ok", Behaviors: []Behavior{{Name: "b", Description: "d"}}},
+			{Name: "Big", Description: "too many", Behaviors: behaviors},
+		},
+	}
+
+	oversized := ps.OversizedSections()
+	if len(oversized) != 1 {
+		t.Fatalf("expected 1 oversized section, got %d", len(oversized))
+	}
+	if oversized[0] != "Big" {
+		t.Errorf("expected Big, got %s", oversized[0])
+	}
+}
+
+func TestOversizedSectionsCountsSubsections(t *testing.T) {
+	ps := &ProjectSpec{
+		Project: "Test",
+		Sections: []Section{
+			{
+				Name:        "Split",
+				Description: "spread across subsections",
+				Behaviors:   []Behavior{{Name: "b1", Description: "d1"}, {Name: "b2", Description: "d2"}},
+				Subsections: []Subsection{
+					{Name: "Sub", Behaviors: make([]Behavior, 9)},
+				},
+			},
+		},
+	}
+	// 2 + 9 = 11 > 10
+	for i := range ps.Sections[0].Subsections[0].Behaviors {
+		ps.Sections[0].Subsections[0].Behaviors[i] = Behavior{
+			Name:        fmt.Sprintf("s%d", i),
+			Description: fmt.Sprintf("sub behavior %d", i),
+		}
+	}
+
+	oversized := ps.OversizedSections()
+	if len(oversized) != 1 {
+		t.Fatalf("expected 1 oversized section, got %d", len(oversized))
+	}
+}
+
+func TestOversizedSectionsNone(t *testing.T) {
+	ps := &ProjectSpec{
+		Project: "Test",
+		Sections: []Section{
+			{Name: "A", Description: "ok", Behaviors: []Behavior{{Name: "b", Description: "d"}}},
+		},
+	}
+
+	oversized := ps.OversizedSections()
+	if len(oversized) != 0 {
+		t.Errorf("expected no oversized sections, got %v", oversized)
 	}
 }
 

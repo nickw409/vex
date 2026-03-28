@@ -43,6 +43,7 @@ Makefile          Build, test, install, and release targets
 vex check                                        # check (drift detection on by default)
 vex check --drift=false                          # force full re-check of all sections
 vex check --section Config                       # check single section
+vex report                                       # formatted summary of last check
 vex validate                                     # validate spec completeness
 vex spec "description"                           # generate spec sections from task
 vex spec "description" --extend Config           # add behaviors to existing section

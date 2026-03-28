@@ -104,6 +104,27 @@ func TestWriteFileContent(t *testing.T) {
 	}
 }
 
+func TestWriteFileIndented(t *testing.T) {
+	p := New()
+	end := p.Start("op-a", "sec-1")
+	end()
+
+	path := filepath.Join(t.TempDir(), "profile.json")
+	if err := p.WriteFile(path); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Should be indented (contains newline + spaces)
+	if !strings.Contains(string(data), "\n  ") {
+		t.Error("expected indented JSON output")
+	}
+}
+
 func TestSpansReturnsCopy(t *testing.T) {
 	p := New()
 	end := p.Start("original", "")

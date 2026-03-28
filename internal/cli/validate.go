@@ -28,6 +28,10 @@ func newValidateCmd() *cobra.Command {
 				return err
 			}
 
+			for _, name := range ps.OversizedSections() {
+				log.Info("warning: section %q exceeds %d behaviors — consider splitting", name, spec.MaxSectionBehaviors)
+			}
+
 			p, err := provider.New(cfg)
 			if err != nil {
 				return err

@@ -39,6 +39,10 @@ func newCheckCmd() *cobra.Command {
 				return err
 			}
 
+			for _, name := range ps.OversizedSections() {
+				log.Info("warning: section %q exceeds %d behaviors — consider splitting", name, spec.MaxSectionBehaviors)
+			}
+
 			p, err := provider.New(cfg)
 			if err != nil {
 				return err
@@ -59,6 +63,9 @@ func newCheckCmd() *cobra.Command {
 				}
 			}
 
+			var prevReport *diff.PreviousReport
+			var skippedSections []spec.Section
+
 			if useDrift {
 				endDrift := profStart(prof, "drift:total", "")
 				cwd, err := os.Getwd()
@@ -70,8 +77,12 @@ func newCheckCmd() *cobra.Command {
 				if since.IsZero() {
 					log.Info("no previous check found, checking all sections")
 				} else {
+					prevReport = diff.LoadPreviousReport(cwd)
+					var prevChecksums map[string]string
+					if prevReport != nil {
+						prevChecksums = prevReport.SectionChecksums
+					}
 					log.Info("checking drift since %s", since.Format("2006-01-02 15:04:05"))
-					prevChecksums := diff.ReportChecksums(cwd)
 					var drifted []spec.Section
 					for _, sec := range sections {
 						// Check if the section's spec content changed
@@ -91,6 +102,7 @@ func newCheckCmd() *cobra.Command {
 								drifted = append(drifted, sec)
 							} else {
 								log.Info("skipping clean section %q", sec.Name)
+								skippedSections = append(skippedSections, sec)
 							}
 						} else {
 							if prevChecksums == nil {
@@ -105,7 +117,7 @@ func newCheckCmd() *cobra.Command {
 					if len(sections) == 0 {
 						log.Info("all sections clean, nothing to check")
 						endDrift()
-						return emptyReport(ps)
+						return carryForwardReport(ps, prevReport, skippedSections)
 					}
 				}
 				endDrift()
@@ -242,6 +254,11 @@ func newCheckCmd() *cobra.Command {
 				log.Info("check done with errors: %v", err)
 			}
 
+			// Carry forward previous results for skipped sections.
+			if prevReport != nil && len(skippedSections) > 0 {
+				mergeSkippedResults(r, prevReport, ps, skippedSections)
+			}
+
 			// Inject covered overrides into the report.
 			if len(coveredOverrides) > 0 {
 				r.Covered = append(r.Covered, coveredOverrides...)
@@ -281,6 +298,68 @@ func profStart(prof *perf.Profile, name, parent string) func() {
 		return prof.Start(name, parent)
 	}
 	return func() {}
+}
+
+// mergeSkippedResults carries forward gaps and covered entries from the
+// previous report for sections that were skipped by drift detection.
+func mergeSkippedResults(r *report.Report, prev *diff.PreviousReport, ps *spec.ProjectSpec, skipped []spec.Section) {
+	// Build set of behavior names for skipped sections.
+	skippedBehaviors := make(map[string]bool)
+	extraBehaviors := 0
+	for _, sec := range skipped {
+		for _, b := range ps.AllBehaviors(&sec) {
+			skippedBehaviors[b.Name] = true
+			extraBehaviors++
+		}
+	}
+
+	// Carry forward gaps from previous report for skipped behaviors.
+	for _, g := range prev.Gaps {
+		if skippedBehaviors[g.Behavior] {
+			r.Gaps = append(r.Gaps, report.Gap{
+				Behavior:   g.Behavior,
+				Detail:     g.Detail,
+				Suggestion: g.Suggestion,
+			})
+		}
+	}
+
+	// Carry forward covered entries. Previous report stores covered as
+	// a flat list of behavior names. Create Covered entries so
+	// ComputeSummary counts them correctly.
+	for _, name := range prev.Covered {
+		if skippedBehaviors[name] {
+			r.Covered = append(r.Covered, report.Covered{
+				Behavior: name,
+				Detail:   "carried forward from previous check",
+			})
+		}
+	}
+
+	r.ComputeSummary(r.Summary.TotalBehaviors + extraBehaviors)
+}
+
+// carryForwardReport produces a report when all sections are clean,
+// preserving gaps and covered entries from the previous report.
+func carryForwardReport(ps *spec.ProjectSpec, prev *diff.PreviousReport, skipped []spec.Section) error {
+	r := &report.Report{
+		Spec:    ".vex/vexspec.yaml",
+		Gaps:    []report.Gap{},
+		Covered: []report.Covered{},
+	}
+	r.ComputeSummary(0)
+
+	if prev != nil {
+		mergeSkippedResults(r, prev, ps, skipped)
+	}
+
+	// Store checksums for next drift check.
+	r.SectionChecksums = make(map[string]string, len(ps.Sections))
+	for _, sec := range ps.Sections {
+		r.SectionChecksums[sec.Name] = spec.SectionChecksum(&sec, ps.ResolveShared(&sec))
+	}
+
+	return outputReport(r)
 }
 
 func emptyReport(ps *spec.ProjectSpec) error {

@@ -86,15 +86,7 @@ sections:
       - behavior: exit-codes
         reason: os.Exit(1) in outputReport is a one-liner after HasGaps() which is tested; subprocess pattern not worth the complexity
       - behavior: check-drift-mode
-        reason: drift logic tested at diff/spec package level (ReportChecksums, SectionChecksum, Drift); CLI integration needs mock provider injection not yet supported
-      - behavior: check-execution
-        reason: RunProject tested directly in check package with mock providers; CLI integration needs provider injection through cobra
-      - behavior: check-profile-mode
-        reason: perf.Profile tested directly (Print, WriteFile, Spans); RunProject with profile tested in check package; CLI integration needs provider injection
-      - behavior: check-file-gathering
-        reason: language detection and file finding tested in lang package; CLI warning paths need provider injection to reach
-      - behavior: check-output
-        reason: report JSON output tested via TestCheckEmptyReportWritesJSON; checksums tested in report package; full check output needs provider injection
+        reason: drift logic tested at diff/spec package level; CLI integration needs git repo + mock provider combo not yet built
     behaviors:
       - name: check-spec-loading
         description: |
@@ -166,14 +158,6 @@ sections:
     covered:
       - behavior: exit-codes
         reason: os.Exit(1) in validate is a one-liner after result.Complete check; subprocess pattern not worth the complexity
-      - behavior: validate-execution
-        reason: ValidateProject tested directly in spec package with mock provider; CLI integration needs provider injection through cobra
-      - behavior: validate-output
-        reason: writeOutput tested generically in output_test.go; os.Exit path covered by exit-codes override; JSON format tested in spec package
-      - behavior: json-output
-        reason: writeOutput writes to .vex/ and is tested; validate uses same pattern as check; indentation comes from json.MarshalIndent tested in report package
-      - behavior: error-output
-        reason: error paths return errors through cobra which prints to stderr; tested via TestValidateErrorGoesToStderr
     behaviors:
       - name: validate-spec-arg
         description: |

@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/nickw409/vex/internal/log"
-	"github.com/nickw409/vex/internal/provider"
 	"github.com/nickw409/vex/internal/spec"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +31,7 @@ func newValidateCmd() *cobra.Command {
 				log.Info("warning: section %q exceeds %d behaviors — consider splitting", name, spec.MaxSectionBehaviors)
 			}
 
-			p, err := provider.New(cfg)
+			p, err := newProviderFunc(cfg)
 			if err != nil {
 				return err
 			}

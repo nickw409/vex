@@ -2,7 +2,9 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,9 +12,74 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nickw409/vex/internal/config"
 	"github.com/nickw409/vex/internal/diff"
+	"github.com/nickw409/vex/internal/provider"
 	"github.com/nickw409/vex/internal/report"
 )
+
+// cliMockProvider returns a fixed response for any LLM call.
+type cliMockProvider struct {
+	response string
+	err      error
+}
+
+func (m *cliMockProvider) Complete(ctx context.Context, req provider.CompletionRequest) (provider.CompletionResponse, error) {
+	if m.err != nil {
+		return provider.CompletionResponse{}, m.err
+	}
+	return provider.CompletionResponse{Content: m.response}, nil
+}
+
+// setupCheckEnv creates a temp dir with vex.yaml, a spec, and source/test files.
+// Returns the dir path. Caller must chdir and restore.
+func setupCheckEnv(t *testing.T, specYAML string) string {
+	t.Helper()
+	dir := t.TempDir()
+
+	os.WriteFile(filepath.Join(dir, "vex.yaml"), []byte("provider: claude-cli\nmodel: opus\n"), 0644)
+
+	vexDir := filepath.Join(dir, ".vex")
+	os.MkdirAll(vexDir, 0755)
+	os.WriteFile(filepath.Join(vexDir, "vexspec.yaml"), []byte(specYAML), 0644)
+
+	// Create source and test files
+	srcDir := filepath.Join(dir, "src")
+	os.MkdirAll(srcDir, 0755)
+	os.WriteFile(filepath.Join(srcDir, "auth.go"), []byte("package auth\nfunc Login() {}"), 0644)
+	os.WriteFile(filepath.Join(srcDir, "auth_test.go"), []byte("package auth\nfunc TestLogin(t *testing.T) {}"), 0644)
+
+	return dir
+}
+
+const testSpec = `project: Test
+sections:
+  - name: Auth
+    path: src
+    description: Auth module
+    behaviors:
+      - name: login
+        description: POST /login returns JWT
+`
+
+// withMockProvider overrides newProviderFunc for the duration of the test.
+func withMockProvider(t *testing.T, response string) {
+	t.Helper()
+	orig := newProviderFunc
+	newProviderFunc = func(cfg *config.Config) (provider.Provider, error) {
+		return &cliMockProvider{response: response}, nil
+	}
+	t.Cleanup(func() { newProviderFunc = orig })
+}
+
+func withFailingProvider(t *testing.T, err error) {
+	t.Helper()
+	orig := newProviderFunc
+	newProviderFunc = func(cfg *config.Config) (provider.Provider, error) {
+		return &cliMockProvider{err: err}, nil
+	}
+	t.Cleanup(func() { newProviderFunc = orig })
+}
 
 func TestCheckSpecNotFound(t *testing.T) {
 	cmd := NewRootCmd()
@@ -476,5 +543,330 @@ func TestRootConfigSkippedForUpdate(t *testing.T) {
 
 	if cfg != nil {
 		t.Error("expected cfg to remain nil for update command")
+	}
+}
+
+// --- CLI Check integration tests with mock provider ---
+
+var coveredResp = `{"gaps": [], "covered": [{"behavior": "login", "detail": "tested", "test_file": "auth_test.go", "test_name": "TestLogin"}]}`
+var gapResp = `{"gaps": [{"behavior": "login", "detail": "missing expiry test", "suggestion": "TestLoginExpiry"}], "covered": []}`
+
+func TestCheckExecutionWithMockProvider(t *testing.T) {
+	withMockProvider(t, coveredResp)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false"})
+	err := cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if err != nil {
+		t.Fatalf("check failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	// Verify JSON on stdout
+	var parsed report.Report
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		t.Fatalf("stdout not valid JSON: %v\noutput: %s", err, buf.String())
+	}
+
+	if parsed.Summary.TotalBehaviors != 1 {
+		t.Errorf("expected 1 total behavior, got %d", parsed.Summary.TotalBehaviors)
+	}
+}
+
+func TestCheckOutputWritesReportFile(t *testing.T) {
+	withMockProvider(t, coveredResp)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	// Discard stdout
+	origStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false"})
+	cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	// Verify .vex/report.json written
+	data, err := os.ReadFile(filepath.Join(dir, ".vex", "report.json"))
+	if err != nil {
+		t.Fatalf("expected .vex/report.json: %v", err)
+	}
+
+	var parsed report.Report
+	if err := json.Unmarshal(bytes.TrimSpace(data), &parsed); err != nil {
+		t.Fatalf("report.json not valid JSON: %v", err)
+	}
+
+	// Verify indented
+	if !strings.Contains(string(data), "\n  ") {
+		t.Error("expected indented JSON in report.json")
+	}
+}
+
+func TestCheckOutputIncludesChecksums(t *testing.T) {
+	withMockProvider(t, coveredResp)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false"})
+	cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	var parsed struct {
+		SectionChecksums map[string]string `json:"section_checksums"`
+	}
+	json.Unmarshal(buf.Bytes(), &parsed)
+
+	if parsed.SectionChecksums == nil {
+		t.Fatal("expected section_checksums in report")
+	}
+	if _, ok := parsed.SectionChecksums["Auth"]; !ok {
+		t.Error("expected Auth in section_checksums")
+	}
+}
+
+func TestCheckExecutionErrorStillOutputs(t *testing.T) {
+	withFailingProvider(t, fmt.Errorf("provider unavailable"))
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false"})
+	cmd.Execute() // error expected but report should still be output
+
+	w.Close()
+	os.Stdout = origStdout
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	// Should still get JSON output even on error
+	if buf.Len() == 0 {
+		t.Error("expected report output even on provider error")
+	}
+}
+
+func TestCheckProfileMode(t *testing.T) {
+	withMockProvider(t, coveredResp)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	// Discard stdout
+	origStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false", "--profile"})
+	cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	// Verify .vex/profile.json created
+	data, err := os.ReadFile(filepath.Join(dir, ".vex", "profile.json"))
+	if err != nil {
+		t.Fatalf("expected .vex/profile.json: %v", err)
+	}
+	if len(data) == 0 {
+		t.Error("profile.json is empty")
+	}
+}
+
+func TestValidateExecutionWithMockProvider(t *testing.T) {
+	withMockProvider(t, `{"complete": true, "suggestions": []}`)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"validate", filepath.Join(dir, ".vex", "vexspec.yaml")})
+	err := cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	// Should be valid indented JSON on stdout
+	output := buf.String()
+	if !strings.Contains(output, `"complete"`) {
+		t.Errorf("expected complete field in stdout JSON, got: %s", output)
+	}
+	if !strings.Contains(output, "\n  ") {
+		t.Error("expected indented JSON on stdout")
+	}
+}
+
+func TestValidateOutputWritesFile(t *testing.T) {
+	withMockProvider(t, `{"complete": true, "suggestions": []}`)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	// Discard stdout
+	origStdout := os.Stdout
+	_, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"validate", filepath.Join(dir, ".vex", "vexspec.yaml")})
+	cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	data, err := os.ReadFile(filepath.Join(dir, ".vex", "validation.json"))
+	if err != nil {
+		t.Fatalf("expected .vex/validation.json: %v", err)
+	}
+	if !strings.Contains(string(data), `"complete"`) {
+		t.Error("validation.json should contain complete field")
+	}
+}
+
+func TestValidateSuccessOutputsJSON(t *testing.T) {
+	withMockProvider(t, `{"complete": true, "suggestions": []}`)
+
+	dir := setupCheckEnv(t, testSpec)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	origStderr := os.Stderr
+	_, wErr, _ := os.Pipe()
+	os.Stderr = wErr
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"validate", filepath.Join(dir, ".vex", "vexspec.yaml")})
+	cmd.Execute()
+
+	w.Close()
+	wErr.Close()
+	os.Stdout = origStdout
+	os.Stderr = origStderr
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	// Stdout should have JSON
+	if buf.Len() == 0 {
+		t.Error("expected JSON on stdout for successful validate")
+	}
+
+	var parsed struct {
+		Complete bool `json:"complete"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &parsed); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v", err)
+	}
+	if !parsed.Complete {
+		t.Error("expected complete=true")
+	}
+}
+
+func TestCheckFileGatheringWarnsOnBadPath(t *testing.T) {
+	withMockProvider(t, coveredResp)
+
+	specWithBadPath := `project: Test
+sections:
+  - name: Auth
+    path: [src, nonexistent_bad_path]
+    description: Auth module
+    behaviors:
+      - name: login
+        description: POST /login returns JWT
+`
+	dir := setupCheckEnv(t, specWithBadPath)
+	orig, _ := os.Getwd()
+	defer os.Chdir(orig)
+	os.Chdir(dir)
+
+	// Capture stderr for warnings
+	origStderr := os.Stderr
+	rErr, wErr, _ := os.Pipe()
+	os.Stderr = wErr
+
+	// Discard stdout
+	origStdout := os.Stdout
+	_, wOut, _ := os.Pipe()
+	os.Stdout = wOut
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"check", "--drift=false"})
+	cmd.Execute()
+
+	wErr.Close()
+	wOut.Close()
+	os.Stderr = origStderr
+	os.Stdout = origStdout
+
+	var stderrBuf bytes.Buffer
+	stderrBuf.ReadFrom(rErr)
+
+	if !strings.Contains(stderrBuf.String(), "nonexistent_bad_path") {
+		t.Errorf("expected warning about nonexistent_bad_path on stderr, got: %s", stderrBuf.String())
 	}
 }

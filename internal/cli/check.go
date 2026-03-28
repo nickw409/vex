@@ -16,6 +16,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// newProviderFunc is the factory used to create LLM providers.
+// Tests override this to inject mocks.
+var newProviderFunc = provider.New
+
 func newCheckCmd() *cobra.Command {
 	var specPath string
 	var section string
@@ -43,7 +47,7 @@ func newCheckCmd() *cobra.Command {
 				log.Info("warning: section %q exceeds %d behaviors — consider splitting", name, spec.MaxSectionBehaviors)
 			}
 
-			p, err := provider.New(cfg)
+			p, err := newProviderFunc(cfg)
 			if err != nil {
 				return err
 			}

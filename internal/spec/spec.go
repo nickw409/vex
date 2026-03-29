@@ -24,7 +24,8 @@ type Section struct {
 	Shared       []string          `yaml:"shared,omitempty"`
 	Behaviors    []Behavior        `yaml:"behaviors,omitempty"`
 	Subsections  []Subsection      `yaml:"subsections,omitempty"`
-	Covered      []CoveredOverride `yaml:"covered,omitempty"`
+	Covered      []CoveredOverride   `yaml:"covered,omitempty"`
+	Dismissed    []DismissedOverride `yaml:"dismissed,omitempty"`
 }
 
 // CoveredOverride marks a behavior as covered without sending it to the LLM.
@@ -33,6 +34,14 @@ type Section struct {
 type CoveredOverride struct {
 	Behavior string `yaml:"behavior"`
 	Reason   string `yaml:"reason"`
+}
+
+// DismissedOverride suppresses a validate suggestion so it is not reported
+// on subsequent runs. The suggestion field matches the behavior_name from
+// the validation suggestion.
+type DismissedOverride struct {
+	Suggestion string `yaml:"suggestion"`
+	Reason     string `yaml:"reason"`
 }
 
 type Subsection struct {
@@ -151,6 +160,16 @@ func (ps *ProjectSpec) validate() error {
 			}
 			if co.Reason == "" {
 				return fmt.Errorf("covered override %q in %q missing required field: reason", co.Behavior, sec.Name)
+			}
+		}
+
+		// Validate dismissed overrides
+		for i, d := range sec.Dismissed {
+			if d.Suggestion == "" {
+				return fmt.Errorf("dismissed override %d in %q missing required field: suggestion", i, sec.Name)
+			}
+			if d.Reason == "" {
+				return fmt.Errorf("dismissed override %q in %q missing required field: reason", d.Suggestion, sec.Name)
 			}
 		}
 	}
@@ -289,6 +308,10 @@ func SectionChecksum(sec *Section, sharedBehaviors []Behavior) string {
 	for _, co := range sec.Covered {
 		h.Write([]byte(co.Behavior))
 		h.Write([]byte(co.Reason))
+	}
+	for _, d := range sec.Dismissed {
+		h.Write([]byte(d.Suggestion))
+		h.Write([]byte(d.Reason))
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

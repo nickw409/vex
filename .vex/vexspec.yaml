@@ -43,6 +43,10 @@ sections:
         description: |
           Config languages map overrides built-in detection. Each language
           entry has test_patterns and source_patterns as glob lists.
+      - name: config-load-invalid-yaml
+        description: |
+          Loading a vex.yaml with malformed YAML syntax returns a parse
+          error rather than silently using defaults or panicking.
       - name: config-write-default
         description: |
           WriteDefault creates a vex.yaml with default values. Returns
@@ -193,13 +197,16 @@ sections:
       - name: spec-generate-append
         description: |
           If .vex/vexspec.yaml exists, appends generated sections
-          to existing spec without overwriting existing sections.
+          to existing spec. Does not check for duplicate section
+          names — if a generated section has the same name as an
+          existing one, both are kept.
       - name: spec-extend
         description: |
           --extend flag adds behaviors/subsections to an existing
-          named section. Returns error if section not found.
-          Case-sensitive match. Prints count of added behaviors
-          to stderr.
+          named section. Requires the positional description argument
+          same as spec-generate-new. Returns error if section not found
+          (case-sensitive match) or if the spec file does not exist.
+          Prints count of added behaviors to stderr.
 
   - name: CLI Report
     file: [internal/cli/report.go, internal/cli/report_test.go]
@@ -214,6 +221,10 @@ sections:
           counts, truncates details longer than 120 characters, and
           replaces newlines in details with spaces. Prints "No gaps
           found." when there are no gaps.
+      - name: report-corrupt-file
+        description: |
+          Returns error when .vex/report.json exists but contains
+          invalid or unparseable JSON.
       - name: report-missing-file
         description: |
           Returns error with "run vex check first" hint when
@@ -383,15 +394,9 @@ sections:
         description: |
           Takes task description and existing section, calls LLM
           to generate only new behaviors/subsections that don't
-          duplicate existing ones. Returns ExtendResult.
-      - name: generate-formula-support
-        description: |
-          Both generate and extend prompts accept mathematical
-          formulas and equations as valid behaviors. When a task
-          involves a formula or numerical method, the LLM is
-          instructed to include the formula directly in the
-          behavior description so test coverage can be verified
-          against the mathematical definition.
+          duplicate existing ones. Validates that all generated
+          behaviors have name+description, returns error on invalid
+          YAML or missing fields. Returns ExtendResult.
 
   - name: Provider
     path: internal/provider
@@ -422,6 +427,16 @@ sections:
               --system-prompt {system}. Passes user prompt via stdin.
               Parses JSON response with result, total_cost_usd,
               duration_ms, and usage fields.
+          - name: claude-cli-exit-error
+            description: |
+              When the claude CLI process exits with a non-zero exit code,
+              returns an error containing the stderr output so the caller
+              knows why it failed.
+          - name: claude-cli-malformed-response
+            description: |
+              When the claude CLI returns output that is not valid JSON or
+              is missing expected fields, returns a parse error rather than
+              silently producing zero-valued results.
           - name: claude-cli-not-found
             description: |
               If claude binary not found, returns error with install
@@ -570,8 +585,9 @@ sections:
           Built-in set: Go, TypeScript, JavaScript, Python, Java, Rust,
           C, C++, C#, Ruby, Kotlin, Swift, PHP, CUDA. JavaScript files
           are only counted if package.json exists. Skips node_modules,
-          vendor, .git directories. Config overrides replace builtins
-          with the same name. Returns error if no language detected.
+          vendor, .git directories. Config-defined languages are included
+          in detection alongside builtins; overrides with the same name
+          replace the builtin. Returns error if no language detected.
       - name: lang-find-files
         description: |
           FindFiles walks a directory for a single language. FindFilesMulti

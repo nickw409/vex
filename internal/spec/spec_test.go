@@ -558,6 +558,92 @@ func TestSectionChecksumIncludesCovered(t *testing.T) {
 	}
 }
 
+func TestLoadProjectWithDismissedOverrides(t *testing.T) {
+	yml := `project: Test
+sections:
+  - name: Auth
+    description: Auth module
+    dismissed:
+      - suggestion: logout
+        reason: handled by session manager
+    behaviors:
+      - name: login
+        description: POST /login
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spec.yaml")
+	os.WriteFile(path, []byte(yml), 0644)
+
+	ps, err := LoadProject(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ps.Sections[0].Dismissed) != 1 {
+		t.Fatalf("expected 1 dismissed override, got %d", len(ps.Sections[0].Dismissed))
+	}
+	d := ps.Sections[0].Dismissed[0]
+	if d.Suggestion != "logout" || d.Reason != "handled by session manager" {
+		t.Errorf("unexpected dismissed override: %+v", d)
+	}
+}
+
+func TestLoadProjectDismissedMissingSuggestion(t *testing.T) {
+	yml := `project: Test
+sections:
+  - name: Auth
+    description: Auth module
+    dismissed:
+      - reason: no suggestion name
+    behaviors:
+      - name: login
+        description: POST /login
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spec.yaml")
+	os.WriteFile(path, []byte(yml), 0644)
+
+	_, err := LoadProject(path)
+	if err == nil {
+		t.Error("expected error for dismissed override missing suggestion")
+	}
+}
+
+func TestLoadProjectDismissedMissingReason(t *testing.T) {
+	yml := `project: Test
+sections:
+  - name: Auth
+    description: Auth module
+    dismissed:
+      - suggestion: logout
+    behaviors:
+      - name: login
+        description: POST /login
+`
+	dir := t.TempDir()
+	path := filepath.Join(dir, "spec.yaml")
+	os.WriteFile(path, []byte(yml), 0644)
+
+	_, err := LoadProject(path)
+	if err == nil {
+		t.Error("expected error for dismissed override missing reason")
+	}
+}
+
+func TestSectionChecksumIncludesDismissed(t *testing.T) {
+	sec := &Section{
+		Name:        "Auth",
+		Description: "auth",
+		Behaviors:   []Behavior{{Name: "login", Description: "login"}},
+	}
+	sum1 := SectionChecksum(sec, nil)
+
+	sec.Dismissed = []DismissedOverride{{Suggestion: "logout", Reason: "skip"}}
+	sum2 := SectionChecksum(sec, nil)
+	if sum1 == sum2 {
+		t.Error("checksum should change when dismissed overrides are added")
+	}
+}
+
 func TestOversizedSections(t *testing.T) {
 	// Build a section with 11 behaviors (over the limit)
 	var behaviors []Behavior

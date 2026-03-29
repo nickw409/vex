@@ -124,6 +124,30 @@ Covered behaviors appear as covered in the report with the reason as
 the detail. They are excluded from LLM analysis, saving cost and time.
 Both "behavior" and "reason" are required fields.
 
+## Dismissed Suggestions
+
+Suppress validate suggestions you've decided to skip. Use this when
+vex validate flags a behavior as missing but you've intentionally
+excluded it. Dismissed suggestions are filtered from output and do
+not count toward incomplete status.
+
+  sections:
+    - name: Auth
+      path: src/auth
+      dismissed:
+        - suggestion: logout
+          reason: handled by session manager, not auth module
+        - suggestion: token-revocation
+          reason: out of scope — planned for v2
+      behaviors:
+        - name: login
+          description: ...
+
+Both "suggestion" and "reason" are required fields. The "suggestion"
+value matches the "behavior_name" from the validation suggestion.
+Adding or removing a dismissed entry changes the section checksum,
+triggering revalidation on the next drift-aware run.
+
 ## Writing Behaviors
 
 A behavior IS:

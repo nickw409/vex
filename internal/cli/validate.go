@@ -109,6 +109,12 @@ func newValidateCmd() *cobra.Command {
 				}
 			}
 
+			// Filter out dismissed suggestions.
+			result.Suggestions = filterDismissed(ps, result.Suggestions)
+			if len(result.Suggestions) == 0 {
+				result.Complete = true
+			}
+
 			// Store checksums for all sections (not just validated ones).
 			result.SectionChecksums = make(map[string]string, len(ps.Sections))
 			for _, sec := range ps.Sections {
@@ -138,7 +144,38 @@ func newValidateCmd() *cobra.Command {
 	return cmd
 }
 
+func filterDismissed(ps *spec.ProjectSpec, suggestions []spec.ValidationSuggestion) []spec.ValidationSuggestion {
+	dismissed := make(map[string]map[string]bool) // section -> suggestion name -> true
+	for _, sec := range ps.Sections {
+		if len(sec.Dismissed) > 0 {
+			m := make(map[string]bool, len(sec.Dismissed))
+			for _, d := range sec.Dismissed {
+				m[d.Suggestion] = true
+			}
+			dismissed[sec.Name] = m
+		}
+	}
+
+	if len(dismissed) == 0 {
+		return suggestions
+	}
+
+	var filtered []spec.ValidationSuggestion
+	for _, s := range suggestions {
+		if m, ok := dismissed[s.Section]; ok && m[s.BehaviorName] {
+			log.Info("dismissed suggestion %q in %q", s.BehaviorName, s.Section)
+			continue
+		}
+		filtered = append(filtered, s)
+	}
+	if filtered == nil {
+		filtered = []spec.ValidationSuggestion{}
+	}
+	return filtered
+}
+
 func outputValidation(ps *spec.ProjectSpec, suggestions []spec.ValidationSuggestion) error {
+	suggestions = filterDismissed(ps, suggestions)
 	result := &spec.ValidationResult{
 		Complete:    len(suggestions) == 0,
 		Suggestions: suggestions,

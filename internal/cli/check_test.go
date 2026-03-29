@@ -1003,6 +1003,98 @@ sections:
 	}
 }
 
+func TestValidateDismissedFiltersSuggestions(t *testing.T) {
+	// Mock returns suggestions — both are dismissed so result is complete
+	// (avoids os.Exit(1) which would kill the test process).
+	withMockProvider(t, `{
+		"complete": false,
+		"suggestions": [
+			{"section": "Auth", "behavior_name": "logout", "description": "Missing logout", "relation": "new"},
+			{"section": "Auth", "behavior_name": "token-expiry", "description": "Missing expiry", "relation": "new"}
+		]
+	}`)
+
+	specWithDismissed := `project: Test
+sections:
+  - name: Auth
+    path: src
+    description: Auth module
+    dismissed:
+      - suggestion: logout
+        reason: intentionally omitted
+      - suggestion: token-expiry
+        reason: covered by session TTL
+    behaviors:
+      - name: login
+        description: POST /login returns JWT
+`
+	dir := setupCheckEnv(t, specWithDismissed)
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(dir)
+
+	origStdout := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	cmd := NewRootCmd()
+	cmd.SetArgs([]string{"validate", "--drift=false", filepath.Join(dir, ".vex", "vexspec.yaml")})
+	err := cmd.Execute()
+
+	w.Close()
+	os.Stdout = origStdout
+
+	if err != nil {
+		t.Fatalf("validate failed: %v", err)
+	}
+
+	var buf bytes.Buffer
+	buf.ReadFrom(r)
+
+	var result struct {
+		Complete    bool `json:"complete"`
+		Suggestions []struct {
+			BehaviorName string `json:"behavior_name"`
+		} `json:"suggestions"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &result); err != nil {
+		t.Fatalf("stdout is not valid JSON: %v\n%s", err, buf.String())
+	}
+
+	if !result.Complete {
+		t.Error("expected complete=true after all suggestions dismissed")
+	}
+	if len(result.Suggestions) != 0 {
+		t.Errorf("expected 0 suggestions after dismissal, got %d", len(result.Suggestions))
+	}
+}
+
+func TestValidateDismissedValidation(t *testing.T) {
+	cmd := NewRootCmd()
+
+	specMissingSuggestion := `project: Test
+sections:
+  - name: Auth
+    path: src
+    description: Auth module
+    dismissed:
+      - reason: no suggestion name
+    behaviors:
+      - name: login
+        description: POST /login
+`
+	dir := setupCheckEnv(t, specMissingSuggestion)
+	origDir, _ := os.Getwd()
+	defer os.Chdir(origDir)
+	os.Chdir(dir)
+
+	cmd.SetArgs([]string{"validate", "--drift=false", filepath.Join(dir, ".vex", "vexspec.yaml")})
+	err := cmd.Execute()
+	if err == nil {
+		t.Error("expected error for dismissed override missing suggestion field")
+	}
+}
+
 func TestCheckFileGatheringWarnsOnBadPath(t *testing.T) {
 	withMockProvider(t, coveredResp)
 

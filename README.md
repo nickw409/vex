@@ -123,6 +123,9 @@ sections:
     covered:
       - behavior: session-persistence
         reason: tested via e2e binary spawn in tests/e2e/
+    dismissed:
+      - suggestion: token-revocation
+        reason: out of scope — planned for v2
     behaviors:
       - name: login
         description: |
@@ -147,7 +150,8 @@ All paths are absolute from the project root. Each behavior describes one observ
 | `vex check --section Name` | Check a single section |
 | `vex check --drift=false` | Force full re-check of all sections |
 | `vex report` | Formatted summary of last check |
-| `vex validate` | Validate spec for missing behaviors (sections checked concurrently) |
+| `vex validate` | Validate spec for missing behaviors (concurrent, drift-aware) |
+| `vex validate --drift=false` | Force full revalidation of all sections |
 | `vex spec "description"` | Generate spec sections from task description |
 | `vex spec "desc" --extend Name` | Add behaviors to existing section |
 | `vex drift` | Show which sections have changed since last check |

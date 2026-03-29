@@ -44,7 +44,8 @@ vex check                                        # check (drift detection on by 
 vex check --drift=false                          # force full re-check of all sections
 vex check --section Config                       # check single section
 vex report                                       # formatted summary of last check
-vex validate                                     # validate spec completeness (concurrent)
+vex validate                                     # validate spec completeness (concurrent, drift-aware)
+vex validate --drift=false                       # force full revalidation of all sections
 vex spec "description"                           # generate spec sections from task
 vex spec "description" --extend Config           # add behaviors to existing section
 vex drift                                        # check for code changes since last check
@@ -61,7 +62,7 @@ vex version                                      # print version, commit, build 
 
 - **Spec-driven** — spec is the source of truth, not the code
 - **Two-pass check** — pass 1 sends only tests (cheap triage), pass 2 sends source only for uncovered behaviors; sections run concurrently with adaptive concurrency
-- **Drift-aware** — drift detection is on by default, skipping sections where neither code nor spec changed since the last check
+- **Drift-aware** — drift detection is on by default for both check and validate, skipping sections where neither code nor spec changed since the last run
 - **Language agnostic** — auto-detects Go, TypeScript, JavaScript, Python, Java, Rust, C, C++, C#, Ruby, Kotlin, Swift, PHP, CUDA; multi-language projects are fully supported; custom languages can be added via `vex lang add`
 - **Agent-first** — JSON output, config files over CLI flags, guide command for agent instructions
 - **Bounded** — spec defines the scope, no infinite nitpicking

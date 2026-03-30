@@ -1,0 +1,169 @@
+[
+  {
+    "name": "spec:load",
+    "duration_ms": 0.773
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "Diff",
+    "duration_ms": 0.051
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "RoPE Kernel",
+    "duration_ms": 0.231
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "Pipeline Coordinator",
+    "duration_ms": 0.165
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "Provider",
+    "duration_ms": 0.096
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "KV Cache Manager",
+    "duration_ms": 0.198
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "Diff",
+    "duration_ms": 0.821
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "RMSNorm Kernel",
+    "duration_ms": 0.101
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "RoPE Kernel",
+    "duration_ms": 0.931
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "Provider",
+    "duration_ms": 0.873
+  },
+  {
+    "name": "inputs:read_explicit",
+    "parent": "Provider",
+    "duration_ms": 0.069
+  },
+  {
+    "name": "inputs:detect_and_find",
+    "parent": "Attention Kernel",
+    "duration_ms": 0.109
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "RMSNorm Kernel",
+    "duration_ms": 0.437
+  },
+  {
+    "name": "inputs:read_explicit",
+    "parent": "CLI Report",
+    "duration_ms": 0.494
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "Attention Kernel",
+    "duration_ms": 2.603
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "KV Cache Manager",
+    "duration_ms": 5.795
+  },
+  {
+    "name": "inputs:read_files",
+    "parent": "Pipeline Coordinator",
+    "duration_ms": 6.045
+  },
+  {
+    "name": "inputs:total",
+    "duration_ms": 6.419
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "Diff",
+    "duration_ms": 14407.396
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "CLI Report",
+    "duration_ms": 17974.473
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "Provider",
+    "duration_ms": 18613.196
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "Attention Kernel",
+    "duration_ms": 23119.924
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "RMSNorm Kernel",
+    "duration_ms": 38272.01
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "Pipeline Coordinator",
+    "duration_ms": 23435.231
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "KV Cache Manager",
+    "duration_ms": 31518.708
+  },
+  {
+    "name": "pass 1:llm",
+    "parent": "RoPE Kernel",
+    "duration_ms": 50554.565
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "CLI Report",
+    "duration_ms": 22307.075
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "Provider",
+    "duration_ms": 22649.805
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "RMSNorm Kernel",
+    "duration_ms": 18905.18
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "Attention Kernel",
+    "duration_ms": 34077.961
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "RoPE Kernel",
+    "duration_ms": 24312.016
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "KV Cache Manager",
+    "duration_ms": 36706.299
+  },
+  {
+    "name": "pass 2:llm",
+    "parent": "Pipeline Coordinator",
+    "duration_ms": 69687.817
+  },
+  {
+    "name": "check:total",
+    "duration_ms": 120244.127
+  }
+]

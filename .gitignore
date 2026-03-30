@@ -30,5 +30,8 @@ Thumbs.db
 *.test
 *.out
 
+# Bench (profile is regenerated each run)
+bench/profile.json
+
 # Config (user-specific)
 vex.yaml
